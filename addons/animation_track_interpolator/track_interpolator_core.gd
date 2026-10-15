@@ -380,12 +380,49 @@ static func capture_keys(animation: Animation, track_index: int) -> Array:
 	return keys
 
 
+## 时间相关的设置（默认：不改时间、不做保持）。
+##   time_from / time_to：重映射后的首帧、尾帧时间（秒）；NaN 表示沿用轨道自身的时间。
+##   hold_in / hold_out：区间首、尾各保持原值的比例（0~1）。
+static func default_timing() -> Dictionary:
+	return {"time_from": NAN, "time_to": NAN, "hold_in": 0.0, "hold_out": 0.0}
+
+
+## 校验时间设置；返回空串表示合法。
+static func timing_error(timing: Dictionary) -> String:
+	var hold_in: float = float(timing.get("hold_in", 0.0))
+	var hold_out: float = float(timing.get("hold_out", 0.0))
+	if hold_in < -EPSILON or hold_out < -EPSILON or hold_in + hold_out > 1.0 + EPSILON:
+		return "起始保持与终点保持之和不能超过 100%"
+	var has_from: bool = not is_nan(float(timing.get("time_from", NAN)))
+	var has_to: bool = not is_nan(float(timing.get("time_to", NAN)))
+	if has_from != has_to:
+		return "首帧时间与尾帧时间需要同时设置"
+	if has_from and float(timing["time_to"]) - float(timing["time_from"]) <= EPSILON:
+		return "尾帧时间必须大于首帧时间"
+	return ""
+
+
+## 把「关键帧在区间里的位置 t」换算成「曲线上的位置」：首尾的保持段把曲线压到中间一段。
+static func weight_position(t: float, hold_in: float, hold_out: float) -> float:
+	var head: float = clampf(hold_in, 0.0, 1.0)
+	var tail: float = clampf(hold_out, 0.0, 1.0)
+	var middle: float = 1.0 - head - tail
+	if middle <= EPSILON:
+		return 1.0 if t >= 1.0 - tail else 0.0
+	if t <= head:
+		return 0.0
+	if t >= 1.0 - tail:
+		return 1.0
+	return (t - head) / middle
+
+
 ## 计算重写后的关键帧序列。
 ## active_channels 是每个通道是否参与修改的掩码（1=参与，0=保持该关键帧原值）；
 ## 掩码比通道数短时，缺省视为参与。两侧都不参与的通道完全不动。
 ## curve_points 仅在 curve 为 CURVE_CUSTOM 时生效，用来决定每一帧的过渡权重。
+## timing 见 default_timing()：可整体重定时，并让首尾值各覆盖一段「保持」区间。
 ## 返回 {"ok": bool, "error": String, "keys": Array}
-static func build_keys(animation: Animation, track_index: int, from_value: Variant, to_value: Variant, curve: int, keep_only_ends: bool, active_channels: PackedByteArray, curve_points: PackedVector2Array = PackedVector2Array()) -> Dictionary:
+static func build_keys(animation: Animation, track_index: int, from_value: Variant, to_value: Variant, curve: int, keep_only_ends: bool, active_channels: PackedByteArray, curve_points: PackedVector2Array = PackedVector2Array(), timing: Dictionary = {}) -> Dictionary:
 	var ends: Dictionary = read_track_ends(animation, track_index)
 	if not bool(ends["ok"]):
 		return _fail(String(ends["error"]))
@@ -397,47 +434,62 @@ static func build_keys(animation: Animation, track_index: int, from_value: Varia
 	var channels: int = edit_channel_count(from_value)
 	if count_active_channels(active_channels, channels) == 0:
 		return _fail("没有勾选任何要修改的通道，未做处理")
+	var timing_error_text: String = timing_error(timing)
+	if timing_error_text != "":
+		return _fail(timing_error_text)
+	var hold_in: float = float(timing.get("hold_in", 0.0))
+	var hold_out: float = float(timing.get("hold_out", 0.0))
+
 	var time_from: float = float(ends["time_from"])
 	var time_to: float = float(ends["time_to"])
+	# 目标时间区间：NaN 表示沿用轨道自身的时间。
+	var target_from: float = time_from
+	var target_to: float = time_to
+	if not is_nan(float(timing.get("time_from", NAN))):
+		target_from = float(timing["time_from"])
+		target_to = float(timing["time_to"])
 
 	var keys: Array = []
 	if keep_only_ends:
 		keys.append({
-			"time": time_from,
-			"value": _key_value(curve, 0.0, from_value, to_value, animation.track_get_key_value(track_index, 0), active_channels, curve_points),
+			"time": target_from,
+			"value": _key_value(curve, 0.0, from_value, to_value, animation.track_get_key_value(track_index, 0), active_channels, curve_points, hold_in, hold_out),
 			"transition": 1.0,
 		})
 		keys.append({
-			"time": time_to,
-			"value": _key_value(curve, 1.0, from_value, to_value, animation.track_get_key_value(track_index, count - 1), active_channels, curve_points),
+			"time": target_to,
+			"value": _key_value(curve, 1.0, from_value, to_value, animation.track_get_key_value(track_index, count - 1), active_channels, curve_points, hold_in, hold_out),
 			"transition": 1.0,
 		})
 		return {"ok": true, "error": "", "keys": keys}
 
 	var span: float = time_to - time_from
+	var target_span: float = target_to - target_from
 	for i: int in range(count):
 		var time: float = animation.track_get_key_time(track_index, i)
 		var t: float = 0.0
 		if absf(span) > EPSILON:
-			t = (time - time_from) / span
+			t = clampf((time - time_from) / span, 0.0, 1.0)
 		keys.append({
-			"time": time,
-			"value": _key_value(curve, t, from_value, to_value, animation.track_get_key_value(track_index, i), active_channels, curve_points),
+			"time": target_from + t * target_span,
+			"value": _key_value(curve, t, from_value, to_value, animation.track_get_key_value(track_index, i), active_channels, curve_points, hold_in, hold_out),
 			"transition": animation.track_get_key_transition(track_index, i),
 		})
 	return {"ok": true, "error": "", "keys": keys}
 
 
-## 计算某一个关键帧重写后的值。
+## 计算某一个关键帧重写后的值。t 是它在区间里的位置（0~1），
+## 会先按首尾保持区间换算成曲线上的位置。
 ## 旋转轨道：三个欧拉分量都参与时用 slerp（最短路径的旋转过渡）；
 ## 只勾选部分分量时在欧拉角空间按分量过渡，未勾选的分量保持该关键帧原值。
 ## 其余类型：逐分量插值，未勾选的分量换回该关键帧原值。
-static func _key_value(curve: int, t: float, from_value: Variant, to_value: Variant, original: Variant, active_channels: PackedByteArray, curve_points: PackedVector2Array = PackedVector2Array()) -> Variant:
+static func _key_value(curve: int, t: float, from_value: Variant, to_value: Variant, original: Variant, active_channels: PackedByteArray, curve_points: PackedVector2Array = PackedVector2Array(), hold_in: float = 0.0, hold_out: float = 0.0) -> Variant:
+	var position: float = weight_position(t, hold_in, hold_out)
 	if typeof(from_value) == TYPE_QUATERNION:
 		if count_active_channels(active_channels, ANGLE_CHANNEL_COUNT) >= ANGLE_CHANNEL_COUNT:
-			return interpolate_value(curve, t, from_value, to_value, curve_points)
-		return _blend_euler(curve, t, from_value, to_value, original, active_channels, curve_points)
-	var blended: Variant = _cast_like(original, interpolate_value(curve, t, from_value, to_value, curve_points))
+			return interpolate_value(curve, position, from_value, to_value, curve_points)
+		return _blend_euler(curve, position, from_value, to_value, original, active_channels, curve_points)
+	var blended: Variant = _cast_like(original, interpolate_value(curve, position, from_value, to_value, curve_points))
 	return _merge_channels(original, blended, active_channels)
 
 
