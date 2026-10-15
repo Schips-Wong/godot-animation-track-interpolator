@@ -23,6 +23,8 @@ var _animation_name: String = ""
 var _track_index: int = -1
 var _spin_from: Array[SpinBox] = []
 var _spin_to: Array[SpinBox] = []
+var _check_from: Array[CheckBox] = []
+var _check_to: Array[CheckBox] = []
 var _poll_accumulator: float = 0.0
 var _known_scene_id: int = 0
 
@@ -40,6 +42,14 @@ var _known_scene_id: int = 0
 @onready var _to_y: SpinBox = %ToY
 @onready var _to_z: SpinBox = %ToZ
 @onready var _to_w: SpinBox = %ToW
+@onready var _check_from_x: CheckBox = %CheckFromX
+@onready var _check_from_y: CheckBox = %CheckFromY
+@onready var _check_from_z: CheckBox = %CheckFromZ
+@onready var _check_from_w: CheckBox = %CheckFromW
+@onready var _check_to_x: CheckBox = %CheckToX
+@onready var _check_to_y: CheckBox = %CheckToY
+@onready var _check_to_z: CheckBox = %CheckToZ
+@onready var _check_to_w: CheckBox = %CheckToW
 @onready var _reload_button: Button = %ReloadValuesButton
 @onready var _keep_ends_check: CheckButton = %KeepOnlyEndsCheck
 @onready var _apply_button: Button = %ApplyButton
@@ -56,8 +66,21 @@ func _ready() -> void:
 	_spin_to.append(_to_y)
 	_spin_to.append(_to_z)
 	_spin_to.append(_to_w)
+	_check_from.append(_check_from_x)
+	_check_from.append(_check_from_y)
+	_check_from.append(_check_from_z)
+	_check_from.append(_check_from_w)
+	_check_to.append(_check_to_x)
+	_check_to.append(_check_to_y)
+	_check_to.append(_check_to_z)
+	_check_to.append(_check_to_w)
 	_setup_spins(_spin_from)
 	_setup_spins(_spin_to)
+	for check: CheckBox in _check_from:
+		check.toggled.connect(_on_channel_toggled)
+	for check: CheckBox in _check_to:
+		check.toggled.connect(_on_channel_toggled)
+	_sync_channel_editability()
 
 	_curve_option.clear()
 	var labels: PackedStringArray = Core.curve_labels()
@@ -117,7 +140,30 @@ func _setup_spins(spins: Array[SpinBox]) -> void:
 		spin.allow_greater = true
 		spin.allow_lesser = true
 		spin.select_all_on_focus = true
-		spin.set_tooltip_text("该通道的数值")
+		spin.set_tooltip_text("该通道的数值（勾选左侧复选框后才能修改）")
+
+
+## 只有勾选了对应的通道，输入框才可编辑。
+func _sync_channel_editability() -> void:
+	for i: int in range(SPIN_COUNT):
+		_spin_from[i].editable = _check_from[i].button_pressed
+		_spin_to[i].editable = _check_to[i].button_pressed
+
+
+func _channel_mask(checks: Array[CheckBox]) -> PackedByteArray:
+	var mask: PackedByteArray = PackedByteArray()
+	for i: int in range(SPIN_COUNT):
+		mask.append(1 if checks[i].button_pressed else 0)
+	return mask
+
+
+## 起始值与终点值任一侧勾选，该通道就参与修改；两侧都没勾选的通道保持原值。
+func _active_mask(channels: int) -> PackedByteArray:
+	var mask: PackedByteArray = PackedByteArray()
+	for i: int in range(mini(channels, SPIN_COUNT)):
+		var active: bool = _check_from[i].button_pressed or _check_to[i].button_pressed
+		mask.append(1 if active else 0)
+	return mask
 
 
 # ---------------------------------------------------------------- 列表刷新
@@ -277,6 +323,10 @@ func _clear_spins() -> void:
 	for spin: SpinBox in _spin_to:
 		spin.visible = false
 		spin.value = 0.0
+	for check: CheckBox in _check_from:
+		check.visible = false
+	for check: CheckBox in _check_to:
+		check.visible = false
 
 
 func _select_animation(index: int) -> void:
@@ -313,23 +363,36 @@ func _reload_values_from_keys() -> void:
 		return
 	var from_value: Variant = ends["from"]
 	var channels: int = Core.channel_count(from_value)
-	_fill_spins(_spin_from, Core.value_to_channels(from_value), channels)
-	_fill_spins(_spin_to, Core.value_to_channels(ends["to"]), channels)
+	# 旋转轨道存的是四元数，四个分量耦合，逐通道勾选没有意义，直接锁成全选。
+	var coupled: bool = typeof(from_value) == TYPE_QUATERNION
+	_fill_spins(_spin_from, _check_from, Core.value_to_channels(from_value), channels, coupled)
+	_fill_spins(_spin_to, _check_to, Core.value_to_channels(ends["to"]), channels, coupled)
 
 
-func _fill_spins(spins: Array[SpinBox], values: PackedFloat64Array, channels: int) -> void:
+func _fill_spins(spins: Array[SpinBox], checks: Array[CheckBox], values: PackedFloat64Array, channels: int, coupled: bool) -> void:
 	for i: int in range(SPIN_COUNT):
-		var spin: SpinBox = spins[i]
-		spin.visible = i < channels
-		if i < channels and i < values.size():
-			spin.set_value_no_signal(values[i])
+		var shown: bool = i < channels
+		checks[i].visible = shown
+		spins[i].visible = shown
+		if not shown:
+			continue
+		checks[i].disabled = coupled
+		if coupled:
+			checks[i].set_pressed_no_signal(true)
+		if i < values.size():
+			spins[i].set_value_no_signal(values[i])
+	_sync_channel_editability()
 
 
-func _collect_spin_value(spins: Array[SpinBox], template: Variant) -> Variant:
-	var channels: int = Core.channel_count(template)
-	var values: PackedFloat64Array = PackedFloat64Array()
-	for i: int in range(mini(channels, SPIN_COUNT)):
-		values.append(spins[i].value)
+## 未勾选的通道沿用关键帧原值，不采用输入框里的数值。
+func _collect_spin_value(spins: Array[SpinBox], template: Variant, mask: PackedByteArray) -> Variant:
+	var template_values: PackedFloat64Array = Core.value_to_channels(template)
+	if template_values.is_empty():
+		return template
+	var values: PackedFloat64Array = template_values.duplicate()
+	for i: int in range(mini(template_values.size(), SPIN_COUNT)):
+		if i < mask.size() and mask[i] != 0:
+			values[i] = spins[i].value
 	var value: Variant = Core.channels_to_value(template, values)
 	if value == null:
 		return template
@@ -362,10 +425,24 @@ func _update_info() -> void:
 		lines.append("关键帧 %d 个，时间 %.3f ~ %.3f" % [int(ends["count"]), float(ends["time_from"]), float(ends["time_to"])])
 		lines.append("当前首帧：%s" % Core.describe_value(ends["from"]))
 		lines.append("当前尾帧：%s" % Core.describe_value(ends["to"]))
+		lines.append("参与修改的通道：%s" % _describe_active_channels(Core.channel_count(ends["from"])))
+		if typeof(ends["from"]) == TYPE_QUATERNION:
+			lines.append("（旋转轨道存的是四元数，四分量联动，通道勾选不可用）")
 	else:
 		lines.append("（%s）" % String(ends["error"]))
 	lines.append("动画来源：%s" % _animation_source())
 	_info_label.text = "\n".join(lines)
+
+
+func _describe_active_channels(channels: int) -> String:
+	var names: PackedStringArray = PackedStringArray(["X", "Y", "Z", "W"])
+	var active: PackedStringArray = PackedStringArray()
+	for i: int in range(mini(channels, SPIN_COUNT)):
+		if _check_from[i].button_pressed or _check_to[i].button_pressed:
+			active.append(names[i])
+	if active.is_empty():
+		return "无（不会做任何修改）"
+	return ", ".join(active)
 
 
 func _animation_source() -> String:
@@ -404,6 +481,11 @@ func _on_track_selected(index: int) -> void:
 
 
 func _on_keep_ends_toggled(_pressed: bool) -> void:
+	_update_info()
+
+
+func _on_channel_toggled(_pressed: bool) -> void:
+	_sync_channel_editability()
 	_update_info()
 
 
@@ -471,9 +553,13 @@ func _apply_tracks(track_indices: PackedInt32Array, use_spin_values: bool) -> vo
 		var from_value: Variant = ends["from"]
 		var to_value: Variant = ends["to"]
 		if use_spin_values and track_index == _track_index:
-			from_value = _collect_spin_value(_spin_from, from_value)
-			to_value = _collect_spin_value(_spin_to, to_value)
-		var built: Dictionary = Core.build_keys(_animation, track_index, from_value, to_value, curve, keep_only_ends)
+			from_value = _collect_spin_value(_spin_from, from_value, _channel_mask(_check_from))
+			to_value = _collect_spin_value(_spin_to, to_value, _channel_mask(_check_to))
+		var active: PackedByteArray = _active_mask(Core.channel_count(from_value))
+		if typeof(from_value) == TYPE_QUATERNION:
+			# 旋转轨道四分量联动，空掩码即「全部参与」
+			active = PackedByteArray()
+		var built: Dictionary = Core.build_keys(_animation, track_index, from_value, to_value, curve, keep_only_ends, active)
 		if not bool(built["ok"]):
 			skipped += 1
 			if track_indices.size() == 1:

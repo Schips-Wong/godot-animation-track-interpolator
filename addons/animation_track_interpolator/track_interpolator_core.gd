@@ -254,8 +254,10 @@ static func capture_keys(animation: Animation, track_index: int) -> Array:
 
 
 ## 计算重写后的关键帧序列。
+## active_channels 是每个通道是否参与修改的掩码（1=参与，0=保持该关键帧原值）；
+## 掩码比通道数短时，缺省视为参与。两侧都不参与的通道完全不动。
 ## 返回 {"ok": bool, "error": String, "keys": Array}
-static func build_keys(animation: Animation, track_index: int, from_value: Variant, to_value: Variant, curve: int, keep_only_ends: bool) -> Dictionary:
+static func build_keys(animation: Animation, track_index: int, from_value: Variant, to_value: Variant, curve: int, keep_only_ends: bool, active_channels: PackedByteArray) -> Dictionary:
 	var ends: Dictionary = read_track_ends(animation, track_index)
 	if not bool(ends["ok"]):
 		return _fail(String(ends["error"]))
@@ -264,13 +266,28 @@ static func build_keys(animation: Animation, track_index: int, from_value: Varia
 		return _fail("轨道只有 1 个关键帧，无法做起始值到终点值的过渡")
 	if channel_count(from_value) == 0 or channel_count(from_value) != channel_count(to_value):
 		return _fail("起始值/终点值与轨道的数值类型不匹配")
+	var channels: int = channel_count(from_value)
+	if count_active_channels(active_channels, channels) == 0:
+		return _fail("没有勾选任何要修改的通道，未做处理")
+	# 四元数的四个分量是耦合的（归一化会牵动全部分量），无法只改其中几个，
+	# 因此旋转轨道必须四个通道一起参与；界面侧会禁用旋转轨道的勾选框。
+	if typeof(from_value) == TYPE_QUATERNION and count_active_channels(active_channels, channels) < channels:
+		return _fail("旋转（四元数）轨道的四个分量联动，不能只修改部分通道")
 	var time_from: float = float(ends["time_from"])
 	var time_to: float = float(ends["time_to"])
 
 	var keys: Array = []
 	if keep_only_ends:
-		keys.append({"time": time_from, "value": _cast_like(animation.track_get_key_value(track_index, 0), from_value), "transition": 1.0})
-		keys.append({"time": time_to, "value": _cast_like(animation.track_get_key_value(track_index, count - 1), to_value), "transition": 1.0})
+		keys.append({
+			"time": time_from,
+			"value": _merge_channels(animation.track_get_key_value(track_index, 0), _cast_like(animation.track_get_key_value(track_index, 0), from_value), active_channels),
+			"transition": 1.0,
+		})
+		keys.append({
+			"time": time_to,
+			"value": _merge_channels(animation.track_get_key_value(track_index, count - 1), _cast_like(animation.track_get_key_value(track_index, count - 1), to_value), active_channels),
+			"transition": 1.0,
+		})
 		return {"ok": true, "error": "", "keys": keys}
 
 	var span: float = time_to - time_from
@@ -279,12 +296,38 @@ static func build_keys(animation: Animation, track_index: int, from_value: Varia
 		var t: float = 0.0
 		if absf(span) > EPSILON:
 			t = (time - time_from) / span
+		var target: Variant = interpolate_value(curve, t, from_value, to_value)
 		keys.append({
 			"time": time,
-			"value": interpolate_value(curve, t, from_value, to_value),
+			"value": _merge_channels(animation.track_get_key_value(track_index, i), target, active_channels),
 			"transition": animation.track_get_key_transition(track_index, i),
 		})
 	return {"ok": true, "error": "", "keys": keys}
+
+
+## 统计参与修改的通道数。
+static func count_active_channels(active_channels: PackedByteArray, channels: int) -> int:
+	var total: int = 0
+	for i: int in range(channels):
+		if i >= active_channels.size() or active_channels[i] != 0:
+			total += 1
+	return total
+
+
+## 把 target 中「未参与修改」的通道换回该关键帧的原值。
+static func _merge_channels(original: Variant, target: Variant, active_channels: PackedByteArray) -> Variant:
+	var target_values: PackedFloat64Array = value_to_channels(target)
+	var original_values: PackedFloat64Array = value_to_channels(original)
+	if target_values.is_empty() or target_values.size() != original_values.size():
+		return target
+	var merged: PackedFloat64Array = target_values.duplicate()
+	for i: int in range(merged.size()):
+		if i < active_channels.size() and active_channels[i] == 0:
+			merged[i] = original_values[i]
+	var result: Variant = channels_to_value(original, merged)
+	if result == null:
+		return target
+	return result
 
 
 ## 用给定的关键帧序列重建一条轨道（撤销/重做也走这里）。

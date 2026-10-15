@@ -60,54 +60,122 @@ tooltip_text = "关键帧从起始值过渡到终点值所采用的曲线"
 [node name="FromLabel" type="Label" parent="CurveGrid"]
 text = "起始值"
 
-[node name="FromRow" type="HBoxContainer" parent="CurveGrid"]
+[node name="FromBox" type="VBoxContainer" parent="CurveGrid"]
 size_flags_horizontal = 3
 
-[node name="FromX" type="SpinBox" parent="CurveGrid/FromRow"]
+[node name="FromRow0" type="HBoxContainer" parent="CurveGrid/FromBox"]
+size_flags_horizontal = 3
+
+[node name="CheckFromX" type="CheckBox" parent="CurveGrid/FromBox/FromRow0"]
+unique_name_in_owner = true
+tooltip_text = "勾选后才能修改 X；未勾选时 X 通道保持原关键帧数值"
+text = "X"
+button_pressed = true
+
+[node name="FromX" type="SpinBox" parent="CurveGrid/FromBox/FromRow0"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(42, 0)
 size_flags_horizontal = 3
+tooltip_text = "X 通道的起始值"
 
-[node name="FromY" type="SpinBox" parent="CurveGrid/FromRow"]
+[node name="CheckFromY" type="CheckBox" parent="CurveGrid/FromBox/FromRow0"]
+unique_name_in_owner = true
+tooltip_text = "勾选后才能修改 Y；未勾选时 Y 通道保持原关键帧数值"
+text = "Y"
+button_pressed = true
+
+[node name="FromY" type="SpinBox" parent="CurveGrid/FromBox/FromRow0"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(42, 0)
 size_flags_horizontal = 3
+tooltip_text = "Y 通道的起始值"
 
-[node name="FromZ" type="SpinBox" parent="CurveGrid/FromRow"]
+[node name="FromRow1" type="HBoxContainer" parent="CurveGrid/FromBox"]
+size_flags_horizontal = 3
+
+[node name="CheckFromZ" type="CheckBox" parent="CurveGrid/FromBox/FromRow1"]
+unique_name_in_owner = true
+tooltip_text = "勾选后才能修改 Z；未勾选时 Z 通道保持原关键帧数值"
+text = "Z"
+button_pressed = true
+
+[node name="FromZ" type="SpinBox" parent="CurveGrid/FromBox/FromRow1"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(42, 0)
 size_flags_horizontal = 3
+tooltip_text = "Z 通道的起始值"
 
-[node name="FromW" type="SpinBox" parent="CurveGrid/FromRow"]
+[node name="CheckFromW" type="CheckBox" parent="CurveGrid/FromBox/FromRow1"]
+unique_name_in_owner = true
+tooltip_text = "勾选后才能修改 W；未勾选时 W 通道保持原关键帧数值"
+text = "W"
+button_pressed = true
+
+[node name="FromW" type="SpinBox" parent="CurveGrid/FromBox/FromRow1"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(42, 0)
 size_flags_horizontal = 3
+tooltip_text = "W 通道的起始值"
 
 [node name="ToLabel" type="Label" parent="CurveGrid"]
 text = "终点值"
 
-[node name="ToRow" type="HBoxContainer" parent="CurveGrid"]
+[node name="ToBox" type="VBoxContainer" parent="CurveGrid"]
 size_flags_horizontal = 3
 
-[node name="ToX" type="SpinBox" parent="CurveGrid/ToRow"]
+[node name="ToRow0" type="HBoxContainer" parent="CurveGrid/ToBox"]
+size_flags_horizontal = 3
+
+[node name="CheckToX" type="CheckBox" parent="CurveGrid/ToBox/ToRow0"]
+unique_name_in_owner = true
+tooltip_text = "勾选后才能修改 X；未勾选时 X 通道保持原关键帧数值"
+text = "X"
+button_pressed = true
+
+[node name="ToX" type="SpinBox" parent="CurveGrid/ToBox/ToRow0"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(42, 0)
 size_flags_horizontal = 3
+tooltip_text = "X 通道的终点值"
 
-[node name="ToY" type="SpinBox" parent="CurveGrid/ToRow"]
+[node name="CheckToY" type="CheckBox" parent="CurveGrid/ToBox/ToRow0"]
+unique_name_in_owner = true
+tooltip_text = "勾选后才能修改 Y；未勾选时 Y 通道保持原关键帧数值"
+text = "Y"
+button_pressed = true
+
+[node name="ToY" type="SpinBox" parent="CurveGrid/ToBox/ToRow0"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(42, 0)
 size_flags_horizontal = 3
+tooltip_text = "Y 通道的终点值"
 
-[node name="ToZ" type="SpinBox" parent="CurveGrid/ToRow"]
+[node name="ToRow1" type="HBoxContainer" parent="CurveGrid/ToBox"]
+size_flags_horizontal = 3
+
+[node name="CheckToZ" type="CheckBox" parent="CurveGrid/ToBox/ToRow1"]
+unique_name_in_owner = true
+tooltip_text = "勾选后才能修改 Z；未勾选时 Z 通道保持原关键帧数值"
+text = "Z"
+button_pressed = true
+
+[node name="ToZ" type="SpinBox" parent="CurveGrid/ToBox/ToRow1"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(42, 0)
 size_flags_horizontal = 3
+tooltip_text = "Z 通道的终点值"
 
-[node name="ToW" type="SpinBox" parent="CurveGrid/ToRow"]
+[node name="CheckToW" type="CheckBox" parent="CurveGrid/ToBox/ToRow1"]
+unique_name_in_owner = true
+tooltip_text = "勾选后才能修改 W；未勾选时 W 通道保持原关键帧数值"
+text = "W"
+button_pressed = true
+
+[node name="ToW" type="SpinBox" parent="CurveGrid/ToBox/ToRow1"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(42, 0)
 size_flags_horizontal = 3
+tooltip_text = "W 通道的终点值"
 
 [node name="ReloadValuesButton" type="Button" parent="."]
 unique_name_in_owner = true
@@ -126,13 +194,13 @@ text = "只保留首尾两个关键帧"
 [node name="ApplyButton" type="Button" parent="ActionRow"]
 unique_name_in_owner = true
 size_flags_horizontal = 3
-tooltip_text = "用上面的起始值/终点值与插值方式，重写选中轨道的关键帧"
+tooltip_text = "用上面的起始值/终点值与插值方式，重写选中轨道中已勾选通道的关键帧"
 text = "应用到选中轨道"
 
 [node name="ApplyAllButton" type="Button" parent="ActionRow"]
 unique_name_in_owner = true
 size_flags_horizontal = 3
-tooltip_text = "对该动画里所有数值轨道，分别用各自的首/尾关键帧值做同样的过渡"
+tooltip_text = "对该动画里所有数值轨道，分别用各自的首/尾关键帧值做同样的过渡（仍然只处理已勾选的通道）"
 text = "应用到全部数值轨道"
 
 [node name="StatusLabel" type="Label" parent="."]
