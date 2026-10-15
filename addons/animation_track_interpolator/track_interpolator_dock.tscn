@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://addons/animation_track_interpolator/track_interpolator_dock.gd" id="1_dock"]
+[ext_resource type="Script" path="res://addons/animation_track_interpolator/curve_editor.gd" id="2_curve"]
 
 [node name="AnimationTrackInterpolator" type="VBoxContainer"]
 script = ExtResource("1_dock")
@@ -55,7 +56,18 @@ text = "插值方式"
 [node name="CurveOption" type="OptionButton" parent="CurveGrid"]
 unique_name_in_owner = true
 size_flags_horizontal = 3
-tooltip_text = "关键帧从起始值过渡到终点值所采用的曲线"
+tooltip_text = "关键帧从起始值过渡到终点值所采用的曲线；选「自定义曲线」可手动拖拽控制点"
+
+[node name="CurveCanvas" type="Control" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 120)
+tooltip_text = "拖动控制点编辑过渡曲线：横轴=时间，纵轴=过渡权重（0=起始值，1=终点值，越界即预动作/回弹）；双击空白加点，右键控制点删点"
+script = ExtResource("2_curve")
+
+[node name="CurveHint" type="Label" parent="."]
+unique_name_in_owner = true
+autowrap_mode = 3
+text = "拖动控制点即可微调过渡；双击空白加点，右键控制点删点（拖动后自动切换为「自定义曲线」）。"
 
 [node name="ValueGrid" type="GridContainer" parent="."]
 unique_name_in_owner = true

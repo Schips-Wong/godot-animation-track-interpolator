@@ -6,6 +6,7 @@ extends VBoxContainer
 ## 然后按指定的过渡方式，把该轨道的关键帧从「起始值」平滑过渡到「终点值」。
 
 const Core: GDScript = preload("res://addons/animation_track_interpolator/track_interpolator_core.gd")
+const CurveCanvas: GDScript = preload("res://addons/animation_track_interpolator/curve_editor.gd")
 
 const COLOR_OK: Color = Color(0.62, 0.87, 0.62)
 const COLOR_ERROR: Color = Color(1.0, 0.55, 0.45)
@@ -33,6 +34,7 @@ var _known_scene_id: int = 0
 @onready var _track_option: OptionButton = %TrackOption
 @onready var _info_label: Label = %InfoLabel
 @onready var _curve_option: OptionButton = %CurveOption
+@onready var _curve_canvas: CurveCanvas = %CurveCanvas
 @onready var _from_x: SpinBox = %FromX
 @onready var _from_y: SpinBox = %FromY
 @onready var _from_z: SpinBox = %FromZ
@@ -75,8 +77,14 @@ func _ready() -> void:
 	_curve_option.clear()
 	var labels: PackedStringArray = Core.curve_labels()
 	for i: int in range(labels.size()):
+		if i == Core.CURVE_CUSTOM:
+			_curve_option.add_separator()
 		_curve_option.add_item(labels[i], i)
 	_curve_option.select(Core.CURVE_LINEAR)
+	_curve_option.item_selected.connect(_on_curve_selected)
+	_curve_canvas.edit_started.connect(_on_curve_edit_started)
+	_curve_canvas.points_changed.connect(_on_curve_points_changed)
+	_curve_canvas.set_points(Core.preset_points(Core.CURVE_LINEAR))
 
 	_refresh_button.pressed.connect(_on_refresh_pressed)
 	_player_option.item_selected.connect(_on_player_selected)
@@ -413,6 +421,7 @@ func _update_info() -> void:
 	else:
 		lines.append("AnimationPlayer：%s" % String(_player.name))
 	lines.append("动画：%s" % _animation_name)
+	lines.append("插值曲线：%s" % _describe_curve())
 	if _track_index < 0:
 		lines.append("轨道：未选择")
 		_info_label.text = "\n".join(lines)
@@ -489,6 +498,44 @@ func _on_channel_toggled(_pressed: bool) -> void:
 	_update_info()
 
 
+## 选中预设方式时，用它的采样点刷新曲线，作为继续手调的起点。
+func _on_curve_selected(index: int) -> void:
+	var id: int = _curve_option.get_item_id(index)
+	if id == Core.CURVE_CUSTOM:
+		return
+	_curve_canvas.set_points(Core.preset_points(id))
+	_update_info()
+
+
+## 一旦手动动过控制点，就切到「自定义曲线」。
+func _on_curve_edit_started() -> void:
+	var custom_index: int = _custom_curve_index()
+	if custom_index >= 0 and _curve_option.selected != custom_index:
+		_curve_option.select(custom_index)
+	_update_info()
+
+
+func _on_curve_points_changed(_points: PackedVector2Array) -> void:
+	_update_info()
+
+
+func _custom_curve_index() -> int:
+	for i: int in range(_curve_option.item_count):
+		if _curve_option.get_item_id(i) == Core.CURVE_CUSTOM:
+			return i
+	return -1
+
+
+## 信息栏里对当前曲线的描述。
+func _describe_curve() -> String:
+	var index: int = _curve_option.selected
+	if index < 0:
+		return "未选择"
+	if _curve_option.get_item_id(index) == Core.CURVE_CUSTOM:
+		return "自定义曲线（%d 个控制点）" % _curve_canvas.get_points().size()
+	return String(_curve_option.get_item_text(index))
+
+
 func _on_reload_values_pressed() -> void:
 	if _animation == null or _track_index < 0:
 		_set_status("请先选择动画与轨道。", false)
@@ -537,6 +584,7 @@ func _apply_tracks(track_indices: PackedInt32Array, use_spin_values: bool) -> vo
 	var curve: int = _curve_option.get_selected_id()
 	if curve < 0:
 		curve = Core.CURVE_LINEAR
+	var curve_points: PackedVector2Array = _curve_canvas.get_points()
 	var keep_only_ends: bool = _keep_ends_check.button_pressed
 
 	var plans: Array[Dictionary] = []
@@ -558,7 +606,7 @@ func _apply_tracks(track_indices: PackedInt32Array, use_spin_values: bool) -> vo
 			to_value = _collect_spin_value(_spin_to, to_value, spin_mask)
 		# 旋转轨道按欧拉角的三个轴勾选；全选时走 slerp，部分勾选时按欧拉角逐分量过渡。
 		var active: PackedByteArray = _channel_mask(Core.edit_channel_count(from_value))
-		var built: Dictionary = Core.build_keys(_animation, track_index, from_value, to_value, curve, keep_only_ends, active)
+		var built: Dictionary = Core.build_keys(_animation, track_index, from_value, to_value, curve, keep_only_ends, active, curve_points)
 		if not bool(built["ok"]):
 			skipped += 1
 			if track_indices.size() == 1:

@@ -6,13 +6,14 @@ extends RefCounted
 ## 按照指定的曲线方式从「起始值」过渡到「终点值」。
 ## 关键帧的时间点默认保持不变，只重写每一帧的值；也可以选择只保留首尾两帧。
 
-## 插值（过渡）方式。0..5，顺序与 curve_labels() 一致。
+## 插值（过渡）方式。0..6，顺序与 curve_labels() 一致。
 const CURVE_LINEAR: int = 0 ## 线性匀速
 const CURVE_SMOOTH: int = 1 ## 平滑（缓入缓出）
 const CURVE_EASE_IN: int = 2 ## 缓入（加速）
 const CURVE_EASE_OUT: int = 3 ## 缓出（减速）
 const CURVE_SINE: int = 4 ## 正弦过渡
 const CURVE_STEP: int = 5 ## 阶跃：保持起始值直到最后一帧
+const CURVE_CUSTOM: int = 6 ## 自定义曲线：权重由可编辑的控制点决定
 
 const EPSILON: float = 0.000001
 
@@ -29,6 +30,7 @@ static func curve_labels() -> PackedStringArray:
 		"缓出（减速）",
 		"正弦过渡",
 		"阶跃（保持起始值到最后一帧）",
+		"自定义曲线（可拖拽控制点）",
 	])
 
 
@@ -229,9 +231,98 @@ static func curve_weight(curve: int, t: float) -> float:
 	return x
 
 
+## 归一化时间 t(0~1) 在指定方式下的插值权重。
+## curve 为 CURVE_CUSTOM 时改用 points（控制点）采样，否则走内置公式。
+static func weight_for(curve: int, t: float, points: PackedVector2Array = PackedVector2Array()) -> float:
+	if curve == CURVE_CUSTOM and points.size() >= 2:
+		return sample_curve(points, t)
+	return curve_weight(curve, t)
+
+
+## 把控制点整理成可采样形式：按 x 升序、x 限制在 0~1、去掉重复 x，并保证首点 x=0、末点 x=1。
+static func normalize_points(points: PackedVector2Array) -> PackedVector2Array:
+	var sorted: Array[Vector2] = []
+	for point: Vector2 in points:
+		sorted.append(Vector2(clampf(point.x, 0.0, 1.0), point.y))
+	sorted.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+	var out: PackedVector2Array = PackedVector2Array()
+	for point: Vector2 in sorted:
+		var last_x: float = out[out.size() - 1].x if not out.is_empty() else -1.0
+		if point.x - last_x > EPSILON:
+			out.append(point)
+	if out.size() < 2:
+		return PackedVector2Array([Vector2(0.0, 0.0), Vector2(1.0, 1.0)])
+	out[0] = Vector2(0.0, out[0].y)
+	out[out.size() - 1] = Vector2(1.0, out[out.size() - 1].y)
+	return out
+
+
+## 采样自定义曲线：x 是归一化时间，返回值即插值权重。
+## 权重允许小于 0 / 大于 1（用于预动作、回弹）；x=0 与 x=1 处的权重固定为控制点首尾的 y。
+static func sample_curve(points: PackedVector2Array, t: float) -> float:
+	var pts: PackedVector2Array = normalize_points(points)
+	var x: float = clampf(t, 0.0, 1.0)
+	for i: int in range(pts.size() - 1):
+		if x <= pts[i + 1].x:
+			return _hermite_at(pts, i, x)
+	return pts[pts.size() - 1].y
+
+
+## 在控制点 i 与 i+1 之间用 Hermite 基函数求值（切线取相邻点的有限差分）。
+static func _hermite_at(pts: PackedVector2Array, i: int, x: float) -> float:
+	var p1: Vector2 = pts[i]
+	var p2: Vector2 = pts[i + 1]
+	var span: float = p2.x - p1.x
+	if span <= EPSILON:
+		return p2.y
+	var u: float = (x - p1.x) / span
+	var m1: float = _point_slope(pts, i) * span
+	var m2: float = _point_slope(pts, i + 1) * span
+	var u2: float = u * u
+	var u3: float = u2 * u
+	var h00: float = 2.0 * u3 - 3.0 * u2 + 1.0
+	var h10: float = u3 - 2.0 * u2 + u
+	var h01: float = -2.0 * u3 + 3.0 * u2
+	var h11: float = u3 - u2
+	return h00 * p1.y + h10 * m1 + h01 * p2.y + h11 * m2
+
+
+## 控制点处的切线斜率：中间点用前后相邻点求差分，端点用相邻线段的斜率。
+static func _point_slope(pts: PackedVector2Array, i: int) -> float:
+	if i <= 0:
+		return _secant_slope(pts[0], pts[1])
+	if i >= pts.size() - 1:
+		return _secant_slope(pts[pts.size() - 2], pts[pts.size() - 1])
+	return _secant_slope(pts[i - 1], pts[i + 1])
+
+
+static func _secant_slope(a: Vector2, b: Vector2) -> float:
+	var dx: float = b.x - a.x
+	if absf(dx) <= EPSILON:
+		return 0.0
+	return (b.y - a.y) / dx
+
+
+## 预设方式采样出的控制点：作为「自定义曲线」继续手调的起点。
+static func preset_points(curve: int, segments: int = 4) -> PackedVector2Array:
+	var out: PackedVector2Array = PackedVector2Array()
+	if curve == CURVE_CUSTOM:
+		return out
+	if curve == CURVE_STEP:
+		out.append(Vector2(0.0, 0.0))
+		out.append(Vector2(0.85, 0.0))
+		out.append(Vector2(1.0, 1.0))
+		return out
+	var steps: int = maxi(segments, 1)
+	for i: int in range(steps + 1):
+		var x: float = float(i) / float(steps)
+		out.append(Vector2(x, curve_weight(curve, x)))
+	return out
+
+
 ## 在 from_value 与 to_value 之间按指定的方式过渡。四元数走 slerp 保证旋转正确。
-static func interpolate_value(curve: int, t: float, from_value: Variant, to_value: Variant) -> Variant:
-	var weight: float = curve_weight(curve, t)
+static func interpolate_value(curve: int, t: float, from_value: Variant, to_value: Variant, points: PackedVector2Array = PackedVector2Array()) -> Variant:
+	var weight: float = weight_for(curve, t, points)
 	if typeof(from_value) == TYPE_QUATERNION and typeof(to_value) == TYPE_QUATERNION:
 		var qa: Quaternion = from_value
 		var qb: Quaternion = to_value
@@ -292,8 +383,9 @@ static func capture_keys(animation: Animation, track_index: int) -> Array:
 ## 计算重写后的关键帧序列。
 ## active_channels 是每个通道是否参与修改的掩码（1=参与，0=保持该关键帧原值）；
 ## 掩码比通道数短时，缺省视为参与。两侧都不参与的通道完全不动。
+## curve_points 仅在 curve 为 CURVE_CUSTOM 时生效，用来决定每一帧的过渡权重。
 ## 返回 {"ok": bool, "error": String, "keys": Array}
-static func build_keys(animation: Animation, track_index: int, from_value: Variant, to_value: Variant, curve: int, keep_only_ends: bool, active_channels: PackedByteArray) -> Dictionary:
+static func build_keys(animation: Animation, track_index: int, from_value: Variant, to_value: Variant, curve: int, keep_only_ends: bool, active_channels: PackedByteArray, curve_points: PackedVector2Array = PackedVector2Array()) -> Dictionary:
 	var ends: Dictionary = read_track_ends(animation, track_index)
 	if not bool(ends["ok"]):
 		return _fail(String(ends["error"]))
@@ -312,12 +404,12 @@ static func build_keys(animation: Animation, track_index: int, from_value: Varia
 	if keep_only_ends:
 		keys.append({
 			"time": time_from,
-			"value": _key_value(curve, 0.0, from_value, to_value, animation.track_get_key_value(track_index, 0), active_channels),
+			"value": _key_value(curve, 0.0, from_value, to_value, animation.track_get_key_value(track_index, 0), active_channels, curve_points),
 			"transition": 1.0,
 		})
 		keys.append({
 			"time": time_to,
-			"value": _key_value(curve, 1.0, from_value, to_value, animation.track_get_key_value(track_index, count - 1), active_channels),
+			"value": _key_value(curve, 1.0, from_value, to_value, animation.track_get_key_value(track_index, count - 1), active_channels, curve_points),
 			"transition": 1.0,
 		})
 		return {"ok": true, "error": "", "keys": keys}
@@ -330,7 +422,7 @@ static func build_keys(animation: Animation, track_index: int, from_value: Varia
 			t = (time - time_from) / span
 		keys.append({
 			"time": time,
-			"value": _key_value(curve, t, from_value, to_value, animation.track_get_key_value(track_index, i), active_channels),
+			"value": _key_value(curve, t, from_value, to_value, animation.track_get_key_value(track_index, i), active_channels, curve_points),
 			"transition": animation.track_get_key_transition(track_index, i),
 		})
 	return {"ok": true, "error": "", "keys": keys}
@@ -340,23 +432,23 @@ static func build_keys(animation: Animation, track_index: int, from_value: Varia
 ## 旋转轨道：三个欧拉分量都参与时用 slerp（最短路径的旋转过渡）；
 ## 只勾选部分分量时在欧拉角空间按分量过渡，未勾选的分量保持该关键帧原值。
 ## 其余类型：逐分量插值，未勾选的分量换回该关键帧原值。
-static func _key_value(curve: int, t: float, from_value: Variant, to_value: Variant, original: Variant, active_channels: PackedByteArray) -> Variant:
+static func _key_value(curve: int, t: float, from_value: Variant, to_value: Variant, original: Variant, active_channels: PackedByteArray, curve_points: PackedVector2Array = PackedVector2Array()) -> Variant:
 	if typeof(from_value) == TYPE_QUATERNION:
 		if count_active_channels(active_channels, ANGLE_CHANNEL_COUNT) >= ANGLE_CHANNEL_COUNT:
-			return interpolate_value(curve, t, from_value, to_value)
-		return _blend_euler(curve, t, from_value, to_value, original, active_channels)
-	var blended: Variant = _cast_like(original, interpolate_value(curve, t, from_value, to_value))
+			return interpolate_value(curve, t, from_value, to_value, curve_points)
+		return _blend_euler(curve, t, from_value, to_value, original, active_channels, curve_points)
+	var blended: Variant = _cast_like(original, interpolate_value(curve, t, from_value, to_value, curve_points))
 	return _merge_channels(original, blended, active_channels)
 
 
 ## 欧拉角空间的逐分量过渡：勾选的分量从起始角过渡到终点角，其余分量取该关键帧原角度。
-static func _blend_euler(curve: int, t: float, from_value: Variant, to_value: Variant, original: Variant, active_channels: PackedByteArray) -> Variant:
+static func _blend_euler(curve: int, t: float, from_value: Variant, to_value: Variant, original: Variant, active_channels: PackedByteArray, curve_points: PackedVector2Array = PackedVector2Array()) -> Variant:
 	var from_euler: PackedFloat64Array = value_to_edit_channels(from_value)
 	var to_euler: PackedFloat64Array = value_to_edit_channels(to_value)
 	var original_euler: PackedFloat64Array = value_to_edit_channels(original)
 	if from_euler.size() < ANGLE_CHANNEL_COUNT or original_euler.size() < ANGLE_CHANNEL_COUNT:
 		return original
-	var weight: float = curve_weight(curve, t)
+	var weight: float = weight_for(curve, t, curve_points)
 	var mixed: PackedFloat64Array = PackedFloat64Array()
 	for i: int in range(ANGLE_CHANNEL_COUNT):
 		var active: bool = i >= active_channels.size() or active_channels[i] != 0
