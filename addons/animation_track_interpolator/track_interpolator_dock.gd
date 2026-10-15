@@ -35,10 +35,8 @@ var _known_scene_id: int = 0
 @onready var _info_label: Label = %InfoLabel
 @onready var _curve_option: OptionButton = %CurveOption
 @onready var _curve_canvas: CurveCanvas = %CurveCanvas
-@onready var _time_from_spin: SpinBox = %TimeFromSpin
-@onready var _time_to_spin: SpinBox = %TimeToSpin
-@onready var _hold_in_spin: SpinBox = %HoldInSpin
-@onready var _hold_out_spin: SpinBox = %HoldOutSpin
+@onready var _range_from_spin: SpinBox = %RangeFromSpin
+@onready var _range_to_spin: SpinBox = %RangeToSpin
 @onready var _from_x: SpinBox = %FromX
 @onready var _from_y: SpinBox = %FromY
 @onready var _from_z: SpinBox = %FromZ
@@ -74,9 +72,9 @@ func _ready() -> void:
 	_checks.append(_check_w)
 	_setup_spins(_spin_from)
 	_setup_spins(_spin_to)
-	_setup_time_spins()
-	for timing_spin: SpinBox in [_time_from_spin, _time_to_spin, _hold_in_spin, _hold_out_spin]:
-		timing_spin.value_changed.connect(_on_timing_changed)
+	_setup_range_spins()
+	for range_spin: SpinBox in [_range_from_spin, _range_to_spin]:
+		range_spin.value_changed.connect(_on_range_changed)
 	for check: CheckBox in _checks:
 		check.toggled.connect(_on_channel_toggled)
 	_sync_channel_editability()
@@ -144,9 +142,9 @@ func _setup_spins(spins: Array[SpinBox]) -> void:
 		_configure_spin(spin, false)
 
 
-## 时间（秒）与作用范围（百分比）两组输入框的取值范围与单位。
-func _setup_time_spins() -> void:
-	for spin: SpinBox in [_time_from_spin, _time_to_spin]:
+## 生效范围两个输入框：以秒为单位。
+func _setup_range_spins() -> void:
+	for spin: SpinBox in [_range_from_spin, _range_to_spin]:
 		spin.min_value = -100000.0
 		spin.max_value = 100000.0
 		spin.allow_greater = true
@@ -155,13 +153,6 @@ func _setup_time_spins() -> void:
 		spin.custom_arrow_step = 0.1
 		spin.select_all_on_focus = true
 		spin.suffix = " s"
-	for spin: SpinBox in [_hold_in_spin, _hold_out_spin]:
-		spin.min_value = 0.0
-		spin.max_value = 100.0
-		spin.step = 1.0
-		spin.custom_arrow_step = 5.0
-		spin.select_all_on_focus = true
-		spin.suffix = " %"
 
 
 ## 旋转轨道用欧拉角（度）编辑：步长、后缀、取值范围都换成角度制。
@@ -356,10 +347,8 @@ func _clear_spins() -> void:
 		spin.value = 0.0
 	for check: CheckBox in _checks:
 		check.visible = false
-	_time_from_spin.set_value_no_signal(0.0)
-	_time_to_spin.set_value_no_signal(0.0)
-	_hold_in_spin.set_value_no_signal(0.0)
-	_hold_out_spin.set_value_no_signal(0.0)
+	_range_from_spin.set_value_no_signal(0.0)
+	_range_to_spin.set_value_no_signal(0.0)
 
 
 func _select_animation(index: int) -> void:
@@ -395,9 +384,9 @@ func _reload_values_from_keys() -> void:
 		_clear_spins()
 		return
 	var from_value: Variant = ends["from"]
-	# 时间输入框跟着轨道当前的首尾时间走，改它即重映射整条轨道的时间。
-	_time_from_spin.set_value_no_signal(float(ends["time_from"]))
-	_time_to_spin.set_value_no_signal(float(ends["time_to"]))
+	# 生效范围默认覆盖整条轨道；改小它就只改写范围内的关键帧。
+	_range_from_spin.set_value_no_signal(float(ends["time_from"]))
+	_range_to_spin.set_value_no_signal(float(ends["time_to"]))
 	# 旋转轨道存的是四元数：界面改用欧拉角（度）呈现，三个轴可单独勾选修改。
 	var angle: bool = Core.is_angle_edit(from_value)
 	var channels: int = Core.edit_channel_count(from_value)
@@ -469,7 +458,7 @@ func _update_info() -> void:
 		lines.append("当前首帧：%s" % Core.describe_edit_value(ends["from"]))
 		lines.append("当前尾帧：%s" % Core.describe_edit_value(ends["to"]))
 		lines.append("参与修改的通道：%s" % _describe_active_channels(Core.edit_channel_count(ends["from"])))
-		lines.append("时间/作用范围：%s" % _describe_timing())
+		lines.append("生效范围：%s" % _describe_range())
 		if Core.is_angle_edit(ends["from"]):
 			lines.append("（旋转轨道按欧拉角(度)编辑；可单独勾选 X/Y/Z 轴修改；全选时按最短路径 slerp 过渡）")
 	else:
@@ -489,24 +478,16 @@ func _describe_active_channels(channels: int) -> String:
 	return ", ".join(active)
 
 
-## 时间与作用范围的可读描述。
-func _describe_timing() -> String:
-	var parts: PackedStringArray = PackedStringArray()
-	parts.append("首帧 %.3fs → 尾帧 %.3fs" % [_time_from_spin.value, _time_to_spin.value])
-	var head: float = _hold_in_spin.value
-	var tail: float = _hold_out_spin.value
-	if head > 0.0 or tail > 0.0:
-		parts.append("起值保持 %.0f%% / 终值保持 %.0f%%" % [head, tail])
-	return "，".join(parts)
+## 生效范围的可读描述。
+func _describe_range() -> String:
+	return "%.3fs → %.3fs（此范围外的关键帧保持原值）" % [_range_from_spin.value, _range_to_spin.value]
 
 
-## 收集时间设置。use_spin_times 为 false 时不动轨道时间（「应用到全部」保持各轨道自身的时间范围）。
-func _collect_timing(use_spin_times: bool) -> Dictionary:
+## 收集生效范围。use_spin_times 为 false 时用轨道自身的首尾时间（即整条轨道）。
+func _collect_range(use_spin_times: bool) -> Dictionary:
 	return {
-		"time_from": _time_from_spin.value if use_spin_times else NAN,
-		"time_to": _time_to_spin.value if use_spin_times else NAN,
-		"hold_in": _hold_in_spin.value / 100.0,
-		"hold_out": _hold_out_spin.value / 100.0,
+		"from": _range_from_spin.value if use_spin_times else NAN,
+		"to": _range_to_spin.value if use_spin_times else NAN,
 	}
 
 
@@ -549,7 +530,7 @@ func _on_keep_ends_toggled(_pressed: bool) -> void:
 	_update_info()
 
 
-func _on_timing_changed(_value: float) -> void:
+func _on_range_changed(_value: float) -> void:
 	_update_info()
 
 
@@ -646,13 +627,10 @@ func _apply_tracks(track_indices: PackedInt32Array, use_spin_values: bool) -> vo
 		curve = Core.CURVE_LINEAR
 	var curve_points: PackedVector2Array = _curve_canvas.get_points()
 	var keep_only_ends: bool = _keep_ends_check.button_pressed
-	if _hold_in_spin.value + _hold_out_spin.value > 100.0:
-		_set_status("起始保持与终点保持之和不能超过 100%。", false)
+	if use_spin_values and _range_to_spin.value - _range_from_spin.value <= 0.000001:
+		_set_status("生效范围的结束时刻必须大于起始时刻。", false)
 		return
-	if use_spin_values and _time_to_spin.value - _time_from_spin.value <= 0.000001:
-		_set_status("尾帧时间必须大于首帧时间。", false)
-		return
-	var timing: Dictionary = _collect_timing(use_spin_values)
+	var active_range: Dictionary = _collect_range(use_spin_values)
 
 	var plans: Array[Dictionary] = []
 	var skipped: int = 0
@@ -673,7 +651,7 @@ func _apply_tracks(track_indices: PackedInt32Array, use_spin_values: bool) -> vo
 			to_value = _collect_spin_value(_spin_to, to_value, spin_mask)
 		# 旋转轨道按欧拉角的三个轴勾选；全选时走 slerp，部分勾选时按欧拉角逐分量过渡。
 		var active: PackedByteArray = _channel_mask(Core.edit_channel_count(from_value))
-		var built: Dictionary = Core.build_keys(_animation, track_index, from_value, to_value, curve, keep_only_ends, active, curve_points, timing)
+		var built: Dictionary = Core.build_keys(_animation, track_index, from_value, to_value, curve, keep_only_ends, active, curve_points, active_range)
 		if not bool(built["ok"]):
 			skipped += 1
 			if track_indices.size() == 1:

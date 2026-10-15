@@ -69,47 +69,32 @@ unique_name_in_owner = true
 autowrap_mode = 3
 text = "拖动控制点即可微调过渡；双击空白加点，右键控制点删点（拖动后自动切换为「自定义曲线」）。"
 
-[node name="TimeGrid" type="GridContainer" parent="."]
+[node name="RangeGrid" type="GridContainer" parent="."]
 columns = 4
 
-[node name="TimingLabel" type="Label" parent="TimeGrid"]
-tooltip_text = "整条轨道的关键帧时间会被整体重映射到「首帧时间 ~ 尾帧时间」这个区间：只改尾帧时间＝改时长，两个一起改＝整体平移。"
-text = "轨道时间"
+[node name="RangeFromLabel" type="Label" parent="RangeGrid"]
+tooltip_text = "起始值从这个时刻开始生效（秒）。"
+text = "生效范围"
 
-[node name="TimeFromSpin" type="SpinBox" parent="TimeGrid"]
+[node name="RangeFromSpin" type="SpinBox" parent="RangeGrid"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(58, 0)
 size_flags_horizontal = 3
-tooltip_text = "重映射后的首帧时间（秒）。默认等于轨道当前的首帧时间。"
+tooltip_text = "起始值从这个时刻开始算（秒）。该时刻之前的关键帧保持原值不变。默认等于轨道当前的首帧时间。"
 
-[node name="TimeArrow" type="Label" parent="TimeGrid"]
+[node name="RangeArrow" type="Label" parent="RangeGrid"]
 text = "→"
 
-[node name="TimeToSpin" type="SpinBox" parent="TimeGrid"]
+[node name="RangeToSpin" type="SpinBox" parent="RangeGrid"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(58, 0)
 size_flags_horizontal = 3
-tooltip_text = "重映射后的尾帧时间（秒）。默认等于轨道当前的尾帧时间。"
+tooltip_text = "终点值到这个时刻为止（秒）。该时刻之后的关键帧保持原值不变。默认等于轨道当前的尾帧时间。"
 
-[node name="HoldInLabel" type="Label" parent="TimeGrid"]
-tooltip_text = "区间最前面这一段保持起始值不动，剩下的才用来过渡（百分比）。"
-text = "起值保持"
-
-[node name="HoldInSpin" type="SpinBox" parent="TimeGrid"]
+[node name="RangeHint" type="Label" parent="."]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(58, 0)
-size_flags_horizontal = 3
-tooltip_text = "区间最前面这一段保持起始值不动（百分比）；与「终值保持」之和不能超过 100%。"
-
-[node name="HoldOutLabel" type="Label" parent="TimeGrid"]
-tooltip_text = "区间最后面这一段保持终点值不动（百分比）。"
-text = "终值保持"
-
-[node name="HoldOutSpin" type="SpinBox" parent="TimeGrid"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(58, 0)
-size_flags_horizontal = 3
-tooltip_text = "区间最后面这一段保持终点值不动（百分比）。"
+autowrap_mode = 3
+text = "只有落在这个时间范围（秒）内的关键帧会被改写，范围外的关键帧保持原值。"
 
 [node name="ValueGrid" type="GridContainer" parent="."]
 unique_name_in_owner = true
