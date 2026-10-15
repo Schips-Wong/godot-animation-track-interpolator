@@ -356,7 +356,7 @@ func _reload_values_from_keys() -> void:
 		_clear_spins()
 		return
 	var from_value: Variant = ends["from"]
-	# 旋转轨道存的是四元数：界面改用欧拉角（度），且四分量耦合，逐通道勾选没有意义，锁成全选。
+	# 旋转轨道存的是四元数：界面改用欧拉角（度）呈现，三个轴可单独勾选修改。
 	var angle: bool = Core.is_angle_edit(from_value)
 	var channels: int = Core.edit_channel_count(from_value)
 	_fill_channels(Core.value_to_edit_channels(from_value), Core.value_to_edit_channels(ends["to"]), channels, angle)
@@ -374,9 +374,7 @@ func _fill_channels(from_values: PackedFloat64Array, to_values: PackedFloat64Arr
 		_spin_to[i].visible = shown
 		if not shown:
 			continue
-		_checks[i].disabled = angle
-		if angle:
-			_checks[i].set_pressed_no_signal(true)
+		_checks[i].disabled = false
 		_configure_spin(_spin_from[i], angle)
 		_configure_spin(_spin_to[i], angle)
 		if i < from_values.size():
@@ -429,7 +427,7 @@ func _update_info() -> void:
 		lines.append("当前尾帧：%s" % Core.describe_edit_value(ends["to"]))
 		lines.append("参与修改的通道：%s" % _describe_active_channels(Core.edit_channel_count(ends["from"])))
 		if Core.is_angle_edit(ends["from"]):
-			lines.append("（旋转轨道按欧拉角(度)编辑；四元数四分量联动，通道勾选不可用）")
+			lines.append("（旋转轨道按欧拉角(度)编辑；可单独勾选 X/Y/Z 轴修改；全选时按最短路径 slerp 过渡）")
 	else:
 		lines.append("（%s）" % String(ends["error"]))
 	lines.append("动画来源：%s" % _animation_source())
@@ -558,10 +556,8 @@ func _apply_tracks(track_indices: PackedInt32Array, use_spin_values: bool) -> vo
 		if use_spin_values and track_index == _track_index:
 			from_value = _collect_spin_value(_spin_from, from_value, spin_mask)
 			to_value = _collect_spin_value(_spin_to, to_value, spin_mask)
-		var active: PackedByteArray = _channel_mask(Core.channel_count(from_value))
-		if Core.is_angle_edit(from_value):
-			# 旋转轨道四分量联动，空掩码即「全部参与」
-			active = PackedByteArray()
+		# 旋转轨道按欧拉角的三个轴勾选；全选时走 slerp，部分勾选时按欧拉角逐分量过渡。
+		var active: PackedByteArray = _channel_mask(Core.edit_channel_count(from_value))
 		var built: Dictionary = Core.build_keys(_animation, track_index, from_value, to_value, curve, keep_only_ends, active)
 		if not bool(built["ok"]):
 			skipped += 1

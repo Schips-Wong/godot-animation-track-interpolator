@@ -16,6 +16,9 @@ const CURVE_STEP: int = 5 ## 阶跃：保持起始值直到最后一帧
 
 const EPSILON: float = 0.000001
 
+## 旋转轨道在界面上按欧拉角的三个轴（X/Y/Z）编辑。
+const ANGLE_CHANNEL_COUNT: int = 3
+
 
 ## 支持的插值方式显示名（顺序与 Curve 枚举一致）。
 static func curve_labels() -> PackedStringArray:
@@ -299,13 +302,9 @@ static func build_keys(animation: Animation, track_index: int, from_value: Varia
 		return _fail("轨道只有 1 个关键帧，无法做起始值到终点值的过渡")
 	if channel_count(from_value) == 0 or channel_count(from_value) != channel_count(to_value):
 		return _fail("起始值/终点值与轨道的数值类型不匹配")
-	var channels: int = channel_count(from_value)
+	var channels: int = edit_channel_count(from_value)
 	if count_active_channels(active_channels, channels) == 0:
 		return _fail("没有勾选任何要修改的通道，未做处理")
-	# 四元数的四个分量是耦合的（归一化会牵动全部分量），无法只改其中几个，
-	# 因此旋转轨道必须四个通道一起参与；界面侧会禁用旋转轨道的勾选框。
-	if typeof(from_value) == TYPE_QUATERNION and count_active_channels(active_channels, channels) < channels:
-		return _fail("旋转（四元数）轨道的四个分量联动，不能只修改部分通道")
 	var time_from: float = float(ends["time_from"])
 	var time_to: float = float(ends["time_to"])
 
@@ -313,12 +312,12 @@ static func build_keys(animation: Animation, track_index: int, from_value: Varia
 	if keep_only_ends:
 		keys.append({
 			"time": time_from,
-			"value": _merge_channels(animation.track_get_key_value(track_index, 0), _cast_like(animation.track_get_key_value(track_index, 0), from_value), active_channels),
+			"value": _key_value(curve, 0.0, from_value, to_value, animation.track_get_key_value(track_index, 0), active_channels),
 			"transition": 1.0,
 		})
 		keys.append({
 			"time": time_to,
-			"value": _merge_channels(animation.track_get_key_value(track_index, count - 1), _cast_like(animation.track_get_key_value(track_index, count - 1), to_value), active_channels),
+			"value": _key_value(curve, 1.0, from_value, to_value, animation.track_get_key_value(track_index, count - 1), active_channels),
 			"transition": 1.0,
 		})
 		return {"ok": true, "error": "", "keys": keys}
@@ -329,13 +328,51 @@ static func build_keys(animation: Animation, track_index: int, from_value: Varia
 		var t: float = 0.0
 		if absf(span) > EPSILON:
 			t = (time - time_from) / span
-		var target: Variant = interpolate_value(curve, t, from_value, to_value)
 		keys.append({
 			"time": time,
-			"value": _merge_channels(animation.track_get_key_value(track_index, i), target, active_channels),
+			"value": _key_value(curve, t, from_value, to_value, animation.track_get_key_value(track_index, i), active_channels),
 			"transition": animation.track_get_key_transition(track_index, i),
 		})
 	return {"ok": true, "error": "", "keys": keys}
+
+
+## 计算某一个关键帧重写后的值。
+## 旋转轨道：三个欧拉分量都参与时用 slerp（最短路径的旋转过渡）；
+## 只勾选部分分量时在欧拉角空间按分量过渡，未勾选的分量保持该关键帧原值。
+## 其余类型：逐分量插值，未勾选的分量换回该关键帧原值。
+static func _key_value(curve: int, t: float, from_value: Variant, to_value: Variant, original: Variant, active_channels: PackedByteArray) -> Variant:
+	if typeof(from_value) == TYPE_QUATERNION:
+		if count_active_channels(active_channels, ANGLE_CHANNEL_COUNT) >= ANGLE_CHANNEL_COUNT:
+			return interpolate_value(curve, t, from_value, to_value)
+		return _blend_euler(curve, t, from_value, to_value, original, active_channels)
+	var blended: Variant = _cast_like(original, interpolate_value(curve, t, from_value, to_value))
+	return _merge_channels(original, blended, active_channels)
+
+
+## 欧拉角空间的逐分量过渡：勾选的分量从起始角过渡到终点角，其余分量取该关键帧原角度。
+static func _blend_euler(curve: int, t: float, from_value: Variant, to_value: Variant, original: Variant, active_channels: PackedByteArray) -> Variant:
+	var from_euler: PackedFloat64Array = value_to_edit_channels(from_value)
+	var to_euler: PackedFloat64Array = value_to_edit_channels(to_value)
+	var original_euler: PackedFloat64Array = value_to_edit_channels(original)
+	if from_euler.size() < ANGLE_CHANNEL_COUNT or original_euler.size() < ANGLE_CHANNEL_COUNT:
+		return original
+	var weight: float = curve_weight(curve, t)
+	var mixed: PackedFloat64Array = PackedFloat64Array()
+	for i: int in range(ANGLE_CHANNEL_COUNT):
+		var active: bool = i >= active_channels.size() or active_channels[i] != 0
+		if active:
+			mixed.append(from_euler[i] + shortest_delta(from_euler[i], to_euler[i]) * weight)
+		else:
+			mixed.append(original_euler[i])
+	var result: Variant = edit_channels_to_value(from_value, mixed)
+	if result == null:
+		return original
+	return result
+
+
+## 角度差取最短路径（结果落在 (-180, 180]），避免 170° -> -170° 绕远路转 340°。
+static func shortest_delta(from_deg: float, to_deg: float) -> float:
+	return wrapf(to_deg - from_deg + 180.0, 0.0, 360.0) - 180.0
 
 
 ## 统计参与修改的通道数。
