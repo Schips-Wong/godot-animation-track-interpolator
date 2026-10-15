@@ -381,9 +381,24 @@ static func capture_keys(animation: Animation, track_index: int) -> Array:
 
 
 ## 生效时间范围（秒）：只有落在这个范围内的关键帧会被改写。
-## from / to 为 NaN 表示沿用轨道自身的首帧/尾帧时间（即整条轨道）。
+## from / to 为 NaN 表示沿用默认范围（见 full_range()）。
 static func default_range() -> Dictionary:
 	return {"from": NAN, "to": NAN}
+
+
+## 默认生效范围：整条动画（0 ~ animation.length）。
+## 动画长度可能没覆盖到轨道末尾（比如长度没同步更新，或 Godot 把长度钳成 0.001），
+## 此时取动画长度与轨道尾帧时间的较大值，保证默认范围不会把关键帧排除在外。
+static func full_range(animation: Animation, track_index: int = -1) -> Vector2:
+	var range_to: float = 0.0
+	if animation != null:
+		range_to = animation.length
+	var ends: Dictionary = read_track_ends(animation, track_index)
+	if bool(ends["ok"]):
+		range_to = maxf(range_to, float(ends["time_to"]))
+	if range_to <= EPSILON:
+		return Vector2(0.0, 1.0)
+	return Vector2(0.0, range_to)
 
 
 ## 校验生效范围；返回空串表示合法。
@@ -432,8 +447,10 @@ static func build_keys(animation: Animation, track_index: int, from_value: Varia
 	if range_error_text != "":
 		return _fail(range_error_text)
 
-	var range_from: float = float(ends["time_from"])
-	var range_to: float = float(ends["time_to"])
+	# 默认范围：整条动画（0 ~ 动画长度）。
+	var fallback_range: Vector2 = full_range(animation, track_index)
+	var range_from: float = fallback_range.x
+	var range_to: float = fallback_range.y
 	if not is_nan(float(active_range.get("from", NAN))):
 		range_from = float(active_range["from"])
 		range_to = float(active_range["to"])

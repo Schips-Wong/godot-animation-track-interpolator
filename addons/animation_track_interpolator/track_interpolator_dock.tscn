@@ -70,7 +70,7 @@ autowrap_mode = 3
 text = "拖动控制点即可微调过渡；双击空白加点，右键控制点删点（拖动后自动切换为「自定义曲线」）。"
 
 [node name="RangeGrid" type="GridContainer" parent="."]
-columns = 4
+columns = 6
 
 [node name="RangeFromLabel" type="Label" parent="RangeGrid"]
 tooltip_text = "起始值从这个时刻开始生效（秒）。"
@@ -78,23 +78,38 @@ text = "生效范围"
 
 [node name="RangeFromSpin" type="SpinBox" parent="RangeGrid"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(58, 0)
+custom_minimum_size = Vector2(56, 0)
 size_flags_horizontal = 3
-tooltip_text = "起始值从这个时刻开始算（秒）。该时刻之前的关键帧保持原值不变。默认等于轨道当前的首帧时间。"
+tooltip_text = "起始值从这个时刻开始算（秒）。该时刻之前的关键帧保持原值不变。默认 0，即动画开头。"
 
 [node name="RangeArrow" type="Label" parent="RangeGrid"]
+size_flags_horizontal = 4
 text = "→"
 
 [node name="RangeToSpin" type="SpinBox" parent="RangeGrid"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(58, 0)
+custom_minimum_size = Vector2(56, 0)
 size_flags_horizontal = 3
-tooltip_text = "终点值到这个时刻为止（秒）。该时刻之后的关键帧保持原值不变。默认等于轨道当前的尾帧时间。"
+tooltip_text = "终点值到这个时刻为止（秒）。该时刻之后的关键帧保持原值不变。默认等于动画长度。"
+
+[node name="ResetRangeToAnimationButton" type="Button" parent="RangeGrid"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "读取当前动画的长度，把生效范围设成整条动画：0 ~ 动画长度。"
+text = "重置为动画长度"
+
+[node name="ResetRangeToTrackButton" type="Button" parent="RangeGrid"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "读取选中轨道自身的时间跨度，把生效范围设成：首帧时间 ~ 尾帧时间。"
+text = "重置为轨道长度"
 
 [node name="RangeHint" type="Label" parent="."]
 unique_name_in_owner = true
 autowrap_mode = 3
-text = "只有落在这个时间范围（秒）内的关键帧会被改写，范围外的关键帧保持原值。"
+text = "只有落在这个时间范围（秒）内的关键帧会被改写，范围外的保持原值；默认等于整条动画（0 ~ 动画长度），切换动画时会自动刷新。"
 
 [node name="ValueGrid" type="GridContainer" parent="."]
 unique_name_in_owner = true

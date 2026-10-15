@@ -37,6 +37,8 @@ var _known_scene_id: int = 0
 @onready var _curve_canvas: CurveCanvas = %CurveCanvas
 @onready var _range_from_spin: SpinBox = %RangeFromSpin
 @onready var _range_to_spin: SpinBox = %RangeToSpin
+@onready var _reset_range_animation_button: Button = %ResetRangeToAnimationButton
+@onready var _reset_range_track_button: Button = %ResetRangeToTrackButton
 @onready var _from_x: SpinBox = %FromX
 @onready var _from_y: SpinBox = %FromY
 @onready var _from_z: SpinBox = %FromZ
@@ -75,6 +77,8 @@ func _ready() -> void:
 	_setup_range_spins()
 	for range_spin: SpinBox in [_range_from_spin, _range_to_spin]:
 		range_spin.value_changed.connect(_on_range_changed)
+	_reset_range_animation_button.pressed.connect(_on_reset_range_to_animation)
+	_reset_range_track_button.pressed.connect(_on_reset_range_to_track)
 	for check: CheckBox in _checks:
 		check.toggled.connect(_on_channel_toggled)
 	_sync_channel_editability()
@@ -347,8 +351,22 @@ func _clear_spins() -> void:
 		spin.value = 0.0
 	for check: CheckBox in _checks:
 		check.visible = false
-	_range_from_spin.set_value_no_signal(0.0)
-	_range_to_spin.set_value_no_signal(0.0)
+	_sync_range()
+
+
+## 生效范围默认取整条动画（0 ~ 动画长度）。
+## 切换 AnimationPlayer / 动画 / 轨道时都会立刻刷新，避免沿用上一条动画的范围。
+func _sync_range() -> void:
+	if _animation == null:
+		_set_range(Vector2.ZERO)
+		return
+	_set_range(Core.full_range(_animation, _track_index))
+
+
+## 把生效范围的两个输入框设成给定的起止时刻。
+func _set_range(span: Vector2) -> void:
+	_range_from_spin.set_value_no_signal(span.x)
+	_range_to_spin.set_value_no_signal(span.y)
 
 
 func _select_animation(index: int) -> void:
@@ -366,6 +384,8 @@ func _select_track(index: int) -> void:
 		_clear_spins()
 		_update_info()
 		return
+	# 换了轨道/动画就立刻把生效范围刷成这条动画的整条长度。
+	_sync_range()
 	var supported: bool = Core.is_supported_track_type(_animation.track_get_type(index))
 	_apply_button.disabled = not supported or _animation.track_get_key_count(index) < 2
 	if supported:
@@ -384,9 +404,6 @@ func _reload_values_from_keys() -> void:
 		_clear_spins()
 		return
 	var from_value: Variant = ends["from"]
-	# 生效范围默认覆盖整条轨道；改小它就只改写范围内的关键帧。
-	_range_from_spin.set_value_no_signal(float(ends["time_from"]))
-	_range_to_spin.set_value_no_signal(float(ends["time_to"]))
 	# 旋转轨道存的是四元数：界面改用欧拉角（度）呈现，三个轴可单独勾选修改。
 	var angle: bool = Core.is_angle_edit(from_value)
 	var channels: int = Core.edit_channel_count(from_value)
@@ -532,6 +549,32 @@ func _on_keep_ends_toggled(_pressed: bool) -> void:
 
 func _on_range_changed(_value: float) -> void:
 	_update_info()
+
+
+## 读取当前动画的长度，把生效范围重置为 0 ~ 动画长度。
+func _on_reset_range_to_animation() -> void:
+	if _animation == null:
+		_set_status("请先选择动画。", false)
+		return
+	var span: Vector2 = Core.full_range(_animation, _track_index)
+	_set_range(span)
+	_update_info()
+	_set_status("生效范围已重置为整条动画：0 ~ %.3fs。" % span.y, true)
+
+
+## 读取选中轨道自身的时间跨度，把生效范围重置为 首帧时间 ~ 尾帧时间。
+func _on_reset_range_to_track() -> void:
+	if _animation == null or _track_index < 0:
+		_set_status("请先选择轨道。", false)
+		return
+	var ends: Dictionary = Core.read_track_ends(_animation, _track_index)
+	if not bool(ends["ok"]):
+		_set_status(String(ends["error"]), false)
+		return
+	var span: Vector2 = Vector2(float(ends["time_from"]), float(ends["time_to"]))
+	_set_range(span)
+	_update_info()
+	_set_status("生效范围已重置为选中轨道的跨度：%.3fs ~ %.3fs。" % [span.x, span.y], true)
 
 
 func _on_channel_toggled(_pressed: bool) -> void:
