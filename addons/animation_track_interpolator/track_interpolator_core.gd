@@ -174,6 +174,39 @@ static func channels_to_value(template: Variant, channels: PackedFloat64Array) -
 	return null
 
 
+## 界面上是否以欧拉角（度）的形式编辑这个值：四元数（旋转轨道）走欧拉角。
+static func is_angle_edit(value: Variant) -> bool:
+	return typeof(value) == TYPE_QUATERNION
+
+
+## 界面上的编辑通道数：四元数是 3 个欧拉角，其余按分量数。
+static func edit_channel_count(value: Variant) -> int:
+	if is_angle_edit(value):
+		return 3
+	return channel_count(value)
+
+
+## 值 -> 界面上的通道数值（四元数 -> 欧拉角，单位：度）。
+static func value_to_edit_channels(value: Variant) -> PackedFloat64Array:
+	var out: PackedFloat64Array = PackedFloat64Array()
+	if is_angle_edit(value):
+		var euler: Vector3 = (value as Quaternion).get_euler()
+		out.append(rad_to_deg(euler.x))
+		out.append(rad_to_deg(euler.y))
+		out.append(rad_to_deg(euler.z))
+		return out
+	return value_to_channels(value)
+
+
+## 界面上的通道数值 -> 值（欧拉角（度） -> 四元数）。
+static func edit_channels_to_value(template: Variant, channels: PackedFloat64Array) -> Variant:
+	if is_angle_edit(template):
+		if channels.size() < 3:
+			return template
+		return Quaternion.from_euler(Vector3(deg_to_rad(channels[0]), deg_to_rad(channels[1]), deg_to_rad(channels[2]))).normalized()
+	return channels_to_value(template, channels)
+
+
 ## 归一化时间 t(0~1) 在指定方式下的插值权重。
 static func curve_weight(curve: int, t: float) -> float:
 	var x: float = clampf(t, 0.0, 1.0)
@@ -362,6 +395,18 @@ static func _cast_like(template: Variant, value: Variant) -> Variant:
 
 static func _fail(message: String) -> Dictionary:
 	return {"ok": false, "error": message}
+
+
+## 四元数按欧拉角显示，其余与 describe_value 一致。
+static func describe_edit_value(value: Variant) -> String:
+	if not is_angle_edit(value):
+		return describe_value(value)
+	var channels: PackedFloat64Array = value_to_edit_channels(value)
+	var axes: PackedStringArray = PackedStringArray(["X", "Y", "Z"])
+	var parts: PackedStringArray = PackedStringArray()
+	for i: int in range(channels.size()):
+		parts.append("%s %.1f°" % [axes[i], channels[i]])
+	return "(" + ", ".join(parts) + ")"
 
 
 ## 便于界面显示: "(1.0000, 2.0000, 3.0000)"

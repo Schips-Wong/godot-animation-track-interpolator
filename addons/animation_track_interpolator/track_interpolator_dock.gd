@@ -133,13 +133,27 @@ func _process(delta: float) -> void:
 
 func _setup_spins(spins: Array[SpinBox]) -> void:
 	for spin: SpinBox in spins:
+		spin.allow_greater = true
+		spin.allow_lesser = true
+		spin.select_all_on_focus = true
+		_configure_spin(spin, false)
+
+
+## 旋转轨道用欧拉角（度）编辑：步长、后缀、取值范围都换成角度制。
+func _configure_spin(spin: SpinBox, angle: bool) -> void:
+	if angle:
+		spin.min_value = -3600.0
+		spin.max_value = 3600.0
+		spin.step = 0.1
+		spin.custom_arrow_step = 1.0
+		spin.suffix = "°"
+		spin.set_tooltip_text("该通道的欧拉角（度）")
+	else:
 		spin.min_value = -1000000.0
 		spin.max_value = 1000000.0
 		spin.step = 0.001
 		spin.custom_arrow_step = 0.01
-		spin.allow_greater = true
-		spin.allow_lesser = true
-		spin.select_all_on_focus = true
+		spin.suffix = ""
 		spin.set_tooltip_text("该通道的数值（勾选左侧复选框后才能修改）")
 
 
@@ -362,23 +376,24 @@ func _reload_values_from_keys() -> void:
 		_clear_spins()
 		return
 	var from_value: Variant = ends["from"]
-	var channels: int = Core.channel_count(from_value)
-	# 旋转轨道存的是四元数，四个分量耦合，逐通道勾选没有意义，直接锁成全选。
-	var coupled: bool = typeof(from_value) == TYPE_QUATERNION
-	_fill_spins(_spin_from, _check_from, Core.value_to_channels(from_value), channels, coupled)
-	_fill_spins(_spin_to, _check_to, Core.value_to_channels(ends["to"]), channels, coupled)
+	# 旋转轨道存的是四元数：界面改用欧拉角（度），且四分量耦合，逐通道勾选没有意义，锁成全选。
+	var angle: bool = Core.is_angle_edit(from_value)
+	var channels: int = Core.edit_channel_count(from_value)
+	_fill_spins(_spin_from, _check_from, Core.value_to_edit_channels(from_value), channels, angle)
+	_fill_spins(_spin_to, _check_to, Core.value_to_edit_channels(ends["to"]), channels, angle)
 
 
-func _fill_spins(spins: Array[SpinBox], checks: Array[CheckBox], values: PackedFloat64Array, channels: int, coupled: bool) -> void:
+func _fill_spins(spins: Array[SpinBox], checks: Array[CheckBox], values: PackedFloat64Array, channels: int, angle: bool) -> void:
 	for i: int in range(SPIN_COUNT):
 		var shown: bool = i < channels
 		checks[i].visible = shown
 		spins[i].visible = shown
 		if not shown:
 			continue
-		checks[i].disabled = coupled
-		if coupled:
+		checks[i].disabled = angle
+		if angle:
 			checks[i].set_pressed_no_signal(true)
+		_configure_spin(spins[i], angle)
 		if i < values.size():
 			spins[i].set_value_no_signal(values[i])
 	_sync_channel_editability()
@@ -386,14 +401,14 @@ func _fill_spins(spins: Array[SpinBox], checks: Array[CheckBox], values: PackedF
 
 ## 未勾选的通道沿用关键帧原值，不采用输入框里的数值。
 func _collect_spin_value(spins: Array[SpinBox], template: Variant, mask: PackedByteArray) -> Variant:
-	var template_values: PackedFloat64Array = Core.value_to_channels(template)
+	var template_values: PackedFloat64Array = Core.value_to_edit_channels(template)
 	if template_values.is_empty():
 		return template
 	var values: PackedFloat64Array = template_values.duplicate()
 	for i: int in range(mini(template_values.size(), SPIN_COUNT)):
 		if i < mask.size() and mask[i] != 0:
 			values[i] = spins[i].value
-	var value: Variant = Core.channels_to_value(template, values)
+	var value: Variant = Core.edit_channels_to_value(template, values)
 	if value == null:
 		return template
 	return value
@@ -423,11 +438,13 @@ func _update_info() -> void:
 	var ends: Dictionary = Core.read_track_ends(_animation, _track_index)
 	if bool(ends["ok"]):
 		lines.append("关键帧 %d 个，时间 %.3f ~ %.3f" % [int(ends["count"]), float(ends["time_from"]), float(ends["time_to"])])
-		lines.append("当前首帧：%s" % Core.describe_value(ends["from"]))
-		lines.append("当前尾帧：%s" % Core.describe_value(ends["to"]))
-		lines.append("参与修改的通道：%s" % _describe_active_channels(Core.channel_count(ends["from"])))
-		if typeof(ends["from"]) == TYPE_QUATERNION:
-			lines.append("（旋转轨道存的是四元数，四分量联动，通道勾选不可用）")
+		lines.append("当前首帧：%s" % Core.describe_edit_value(ends["from"]))
+		lines.append("当前尾帧：%s" % Core.describe_edit_value(ends["to"]))
+		if Core.is_angle_edit(ends["from"]):
+			lines.append("参与修改的通道：X, Y, Z（欧拉角/度）")
+			lines.append("（旋转轨道按欧拉角编辑，四元数四分量联动，通道勾选不可用）")
+		else:
+			lines.append("参与修改的通道：%s" % _describe_active_channels(Core.channel_count(ends["from"])))
 	else:
 		lines.append("（%s）" % String(ends["error"]))
 	lines.append("动画来源：%s" % _animation_source())
@@ -556,7 +573,7 @@ func _apply_tracks(track_indices: PackedInt32Array, use_spin_values: bool) -> vo
 			from_value = _collect_spin_value(_spin_from, from_value, _channel_mask(_check_from))
 			to_value = _collect_spin_value(_spin_to, to_value, _channel_mask(_check_to))
 		var active: PackedByteArray = _active_mask(Core.channel_count(from_value))
-		if typeof(from_value) == TYPE_QUATERNION:
+		if Core.is_angle_edit(from_value):
 			# 旋转轨道四分量联动，空掩码即「全部参与」
 			active = PackedByteArray()
 		var built: Dictionary = Core.build_keys(_animation, track_index, from_value, to_value, curve, keep_only_ends, active)
