@@ -1,0 +1,53 @@
+[gd_scene format=3 uid="uid://65jfcpu37p8o"]
+
+[ext_resource type="PackedScene" uid="uid://c7hppll5djhtq" path="res://test/P0.gltf" id="1_8a8pi"]
+[ext_resource type="AnimationLibrary" uid="uid://bewdktueiony1" path="res://test/乾坤刀_Pose_446_下袭.tres" id="2_8a8pi"]
+
+[node name="P0" unique_id=2037473711 instance=ExtResource("1_8a8pi")]
+
+[node name="Skeleton3D" parent="." index="0" unique_id=314085711]
+bones/0/position = Vector3(-8.824147e-08, 0.16378315, 0.2498534)
+bones/1/position = Vector3(0.014935464, 0.70844996, 0.17324717)
+bones/1/rotation = Quaternion(-0.050298784, -0.72203994, 0.0649723, 0.68695486)
+bones/2/rotation = Quaternion(0.49999928, 0.5, -0.5, -0.5000007)
+bones/3/rotation = Quaternion(0.037755754, 0.13192567, 0.03227613, 0.9900144)
+bones/4/rotation = Quaternion(-0.375004, -0.09838055, 0.9029199, 0.18555039)
+bones/5/rotation = Quaternion(4.8031215e-09, -0.8710166, -2.6337638e-08, 0.49125358)
+bones/6/rotation = Quaternion(0.18389648, 0.24565957, 0.112332515, 0.9451005)
+bones/7/rotation = Quaternion(-0.23426327, 0.9667083, 0.09051279, 0.04902456)
+bones/8/rotation = Quaternion(-0.5523748, 0.090801045, 0.7768898, -0.28823546)
+bones/9/rotation = Quaternion(-2.2693602e-08, -0.96041185, 1.9310601e-08, 0.27858415)
+bones/10/rotation = Quaternion(-0.272391, 0.15973665, 0.0069468883, 0.9488094)
+bones/11/rotation = Quaternion(0.12672894, 0.93807006, 0.013901558, 0.3221352)
+bones/12/rotation = Quaternion(0.009550008, -0.045471627, -0.04455143, 0.99792606)
+bones/13/rotation = Quaternion(9.775733e-11, 0.14780945, 4.104225e-07, 0.9890159)
+bones/14/rotation = Quaternion(-0.02579609, -0.022556767, 0.02199986, 0.99917054)
+bones/15/position = Vector3(0.10029123, 3.3254663e-10, 2.3357245e-09)
+bones/15/rotation = Quaternion(-9.6892216e-11, -1.11059535e-08, -6.402892e-11, 1)
+bones/16/rotation = Quaternion(0.95067894, 0.2720249, 0.1379495, 0.05640976)
+bones/17/rotation = Quaternion(-0.816643, -0.17907548, 0.021951193, 0.54821926)
+bones/18/rotation = Quaternion(2.72871e-09, -0.51590115, -1.790377e-08, 0.8566482)
+bones/19/rotation = Quaternion(-0.88260466, -0.19843371, 0.31026876, 0.29217532)
+bones/20/rotation = Quaternion(0.49832982, -0.020882905, -0.50796396, 0.7022849)
+bones/21/rotation = Quaternion(9.824813e-09, 0.7460574, 1.4833476e-08, 0.66588163)
+bones/22/rotation = Quaternion(-0.014600981, 0.6176643, 0.008517347, 0.7862603)
+bones/23/rotation = Quaternion(-2.686302e-09, 0.7932657, -9.223448e-09, 0.6088757)
+bones/24/position = Vector3(0.033092234, -0.02040987, -0.011466411)
+bones/24/rotation = Quaternion(0.7057598, -0.008081688, -0.010948239, 0.7083205)
+bones/25/position = Vector3(4.6033474e-08, 1.4338707e-09, -2.7121832e-08)
+bones/25/rotation = Quaternion(1.3910682e-07, 9.11712e-08, -1.0938368e-07, 1)
+bones/26/rotation = Quaternion(-0.9527645, 0.26430959, -0.13707677, 0.05991883)
+bones/27/rotation = Quaternion(0.79145217, -0.025133647, -0.15512069, 0.59068567)
+bones/28/rotation = Quaternion(1.4668777e-08, -0.6514433, 8.3472464e-09, 0.75869733)
+bones/29/rotation = Quaternion(0.8653198, -0.04527803, -0.46712732, 0.17596519)
+bones/30/rotation = Quaternion(-0.49832982, -0.020882905, 0.50796396, 0.7022849)
+bones/31/rotation = Quaternion(6.50422e-10, 0.7460574, -2.9962304e-09, 0.6658817)
+bones/32/rotation = Quaternion(0.0016146831, 0.59362036, -0.001799749, 0.80474156)
+bones/33/rotation = Quaternion(1.9546027e-09, 0.7771461, -2.499571e-09, 0.6293204)
+bones/34/position = Vector3(0.033092197, 0.020408751, -0.011466424)
+bones/34/rotation = Quaternion(-0.008080634, 0.7057599, 0.7083205, -0.010947212)
+bones/35/position = Vector3(2.921341e-08, 4.203095e-08, -1.3406441e-08)
+bones/35/rotation = Quaternion(-1.6048826e-08, -1.3049904e-08, -1.8548242e-08, 1)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." index="1" unique_id=720749301]
+"libraries/乾坤刀_Pose_446_下袭" = ExtResource("2_8a8pi")

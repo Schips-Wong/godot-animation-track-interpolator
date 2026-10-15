@@ -1,0 +1,143 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://addons/animation_track_interpolator/track_interpolator_dock.gd" id="1_dock"]
+
+[node name="AnimationTrackInterpolator" type="VBoxContainer"]
+script = ExtResource("1_dock")
+
+[node name="TargetGrid" type="GridContainer" parent="."]
+columns = 2
+
+[node name="PlayerLabel" type="Label" parent="TargetGrid"]
+text = "AnimationPlayer"
+
+[node name="PlayerRow" type="HBoxContainer" parent="TargetGrid"]
+size_flags_horizontal = 3
+
+[node name="PlayerOption" type="OptionButton" parent="TargetGrid/PlayerRow"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+tooltip_text = "当前编辑场景中的 AnimationPlayer（带库名的动画会在动画下拉框里显示为 库名/动画名）"
+
+[node name="RefreshButton" type="Button" parent="TargetGrid/PlayerRow"]
+unique_name_in_owner = true
+tooltip_text = "重新扫描当前编辑场景中的 AnimationPlayer，并保留原来的选择"
+text = "刷新"
+
+[node name="AnimLabel" type="Label" parent="TargetGrid"]
+text = "动画"
+
+[node name="AnimOption" type="OptionButton" parent="TargetGrid"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+
+[node name="TrackLabel" type="Label" parent="TargetGrid"]
+text = "轨道"
+
+[node name="TrackOption" type="OptionButton" parent="TargetGrid"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+tooltip_text = "只有数值类轨道（值 / 位置 3D / 旋转 3D / 缩放 3D）可以被插值，其余轨道不可选"
+
+[node name="InfoLabel" type="Label" parent="."]
+unique_name_in_owner = true
+autowrap_mode = 3
+text = "请选择 AnimationPlayer、动画与目标轨道。"
+
+[node name="Sep1" type="HSeparator" parent="."]
+
+[node name="CurveGrid" type="GridContainer" parent="."]
+columns = 2
+
+[node name="CurveLabel" type="Label" parent="CurveGrid"]
+text = "插值方式"
+
+[node name="CurveOption" type="OptionButton" parent="CurveGrid"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+tooltip_text = "关键帧从起始值过渡到终点值所采用的曲线"
+
+[node name="FromLabel" type="Label" parent="CurveGrid"]
+text = "起始值"
+
+[node name="FromRow" type="HBoxContainer" parent="CurveGrid"]
+size_flags_horizontal = 3
+
+[node name="FromX" type="SpinBox" parent="CurveGrid/FromRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(42, 0)
+size_flags_horizontal = 3
+
+[node name="FromY" type="SpinBox" parent="CurveGrid/FromRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(42, 0)
+size_flags_horizontal = 3
+
+[node name="FromZ" type="SpinBox" parent="CurveGrid/FromRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(42, 0)
+size_flags_horizontal = 3
+
+[node name="FromW" type="SpinBox" parent="CurveGrid/FromRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(42, 0)
+size_flags_horizontal = 3
+
+[node name="ToLabel" type="Label" parent="CurveGrid"]
+text = "终点值"
+
+[node name="ToRow" type="HBoxContainer" parent="CurveGrid"]
+size_flags_horizontal = 3
+
+[node name="ToX" type="SpinBox" parent="CurveGrid/ToRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(42, 0)
+size_flags_horizontal = 3
+
+[node name="ToY" type="SpinBox" parent="CurveGrid/ToRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(42, 0)
+size_flags_horizontal = 3
+
+[node name="ToZ" type="SpinBox" parent="CurveGrid/ToRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(42, 0)
+size_flags_horizontal = 3
+
+[node name="ToW" type="SpinBox" parent="CurveGrid/ToRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(42, 0)
+size_flags_horizontal = 3
+
+[node name="ReloadValuesButton" type="Button" parent="."]
+unique_name_in_owner = true
+tooltip_text = "用当前轨道首/尾关键帧的值，重新填充上面的起始值与终点值"
+text = "从首尾关键帧重新读取"
+
+[node name="KeepOnlyEndsCheck" type="CheckButton" parent="."]
+unique_name_in_owner = true
+tooltip_text = "勾选后删除中间关键帧，只保留首尾两帧，由 Godot 自身在这两个值之间过渡"
+text = "只保留首尾两个关键帧"
+
+[node name="Sep2" type="HSeparator" parent="."]
+
+[node name="ActionRow" type="HBoxContainer" parent="."]
+
+[node name="ApplyButton" type="Button" parent="ActionRow"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+tooltip_text = "用上面的起始值/终点值与插值方式，重写选中轨道的关键帧"
+text = "应用到选中轨道"
+
+[node name="ApplyAllButton" type="Button" parent="ActionRow"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+tooltip_text = "对该动画里所有数值轨道，分别用各自的首/尾关键帧值做同样的过渡"
+text = "应用到全部数值轨道"
+
+[node name="StatusLabel" type="Label" parent="."]
+unique_name_in_owner = true
+autowrap_mode = 3
+
+[node name="Spacer" type="Control" parent="."]
+size_flags_vertical = 3
