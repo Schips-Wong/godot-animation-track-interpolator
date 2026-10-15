@@ -23,8 +23,7 @@ var _animation_name: String = ""
 var _track_index: int = -1
 var _spin_from: Array[SpinBox] = []
 var _spin_to: Array[SpinBox] = []
-var _check_from: Array[CheckBox] = []
-var _check_to: Array[CheckBox] = []
+var _checks: Array[CheckBox] = []
 var _poll_accumulator: float = 0.0
 var _known_scene_id: int = 0
 
@@ -42,14 +41,11 @@ var _known_scene_id: int = 0
 @onready var _to_y: SpinBox = %ToY
 @onready var _to_z: SpinBox = %ToZ
 @onready var _to_w: SpinBox = %ToW
-@onready var _check_from_x: CheckBox = %CheckFromX
-@onready var _check_from_y: CheckBox = %CheckFromY
-@onready var _check_from_z: CheckBox = %CheckFromZ
-@onready var _check_from_w: CheckBox = %CheckFromW
-@onready var _check_to_x: CheckBox = %CheckToX
-@onready var _check_to_y: CheckBox = %CheckToY
-@onready var _check_to_z: CheckBox = %CheckToZ
-@onready var _check_to_w: CheckBox = %CheckToW
+@onready var _value_grid: GridContainer = %ValueGrid
+@onready var _check_x: CheckBox = %CheckX
+@onready var _check_y: CheckBox = %CheckY
+@onready var _check_z: CheckBox = %CheckZ
+@onready var _check_w: CheckBox = %CheckW
 @onready var _reload_button: Button = %ReloadValuesButton
 @onready var _keep_ends_check: CheckButton = %KeepOnlyEndsCheck
 @onready var _apply_button: Button = %ApplyButton
@@ -66,19 +62,13 @@ func _ready() -> void:
 	_spin_to.append(_to_y)
 	_spin_to.append(_to_z)
 	_spin_to.append(_to_w)
-	_check_from.append(_check_from_x)
-	_check_from.append(_check_from_y)
-	_check_from.append(_check_from_z)
-	_check_from.append(_check_from_w)
-	_check_to.append(_check_to_x)
-	_check_to.append(_check_to_y)
-	_check_to.append(_check_to_z)
-	_check_to.append(_check_to_w)
+	_checks.append(_check_x)
+	_checks.append(_check_y)
+	_checks.append(_check_z)
+	_checks.append(_check_w)
 	_setup_spins(_spin_from)
 	_setup_spins(_spin_to)
-	for check: CheckBox in _check_from:
-		check.toggled.connect(_on_channel_toggled)
-	for check: CheckBox in _check_to:
+	for check: CheckBox in _checks:
 		check.toggled.connect(_on_channel_toggled)
 	_sync_channel_editability()
 
@@ -157,26 +147,18 @@ func _configure_spin(spin: SpinBox, angle: bool) -> void:
 		spin.set_tooltip_text("该通道的数值（勾选左侧复选框后才能修改）")
 
 
-## 只有勾选了对应的通道，输入框才可编辑。
+## 每个通道只有一组勾选框，同时决定起始值与终点值能否修改。
 func _sync_channel_editability() -> void:
 	for i: int in range(SPIN_COUNT):
-		_spin_from[i].editable = _check_from[i].button_pressed
-		_spin_to[i].editable = _check_to[i].button_pressed
+		_spin_from[i].editable = _checks[i].button_pressed
+		_spin_to[i].editable = _checks[i].button_pressed
 
 
-func _channel_mask(checks: Array[CheckBox]) -> PackedByteArray:
-	var mask: PackedByteArray = PackedByteArray()
-	for i: int in range(SPIN_COUNT):
-		mask.append(1 if checks[i].button_pressed else 0)
-	return mask
-
-
-## 起始值与终点值任一侧勾选，该通道就参与修改；两侧都没勾选的通道保持原值。
-func _active_mask(channels: int) -> PackedByteArray:
+## 通道掩码：1 = 该通道参与修改。
+func _channel_mask(channels: int) -> PackedByteArray:
 	var mask: PackedByteArray = PackedByteArray()
 	for i: int in range(mini(channels, SPIN_COUNT)):
-		var active: bool = _check_from[i].button_pressed or _check_to[i].button_pressed
-		mask.append(1 if active else 0)
+		mask.append(1 if _checks[i].button_pressed else 0)
 	return mask
 
 
@@ -337,9 +319,7 @@ func _clear_spins() -> void:
 	for spin: SpinBox in _spin_to:
 		spin.visible = false
 		spin.value = 0.0
-	for check: CheckBox in _check_from:
-		check.visible = false
-	for check: CheckBox in _check_to:
+	for check: CheckBox in _checks:
 		check.visible = false
 
 
@@ -379,23 +359,30 @@ func _reload_values_from_keys() -> void:
 	# 旋转轨道存的是四元数：界面改用欧拉角（度），且四分量耦合，逐通道勾选没有意义，锁成全选。
 	var angle: bool = Core.is_angle_edit(from_value)
 	var channels: int = Core.edit_channel_count(from_value)
-	_fill_spins(_spin_from, _check_from, Core.value_to_edit_channels(from_value), channels, angle)
-	_fill_spins(_spin_to, _check_to, Core.value_to_edit_channels(ends["to"]), channels, angle)
+	_fill_channels(Core.value_to_edit_channels(from_value), Core.value_to_edit_channels(ends["to"]), channels, angle)
 
 
-func _fill_spins(spins: Array[SpinBox], checks: Array[CheckBox], values: PackedFloat64Array, channels: int, angle: bool) -> void:
+## 起始值 / 终点值 / 勾选框三行一起按通道刷新，保证列对齐。
+func _fill_channels(from_values: PackedFloat64Array, to_values: PackedFloat64Array, channels: int, angle: bool) -> void:
+	# 每行是「行标签 + 各通道」，列数必须跟着通道数走，否则会提前换行错位。
+	var rows: int = maxi(channels, 1)
+	_value_grid.columns = rows + 1
 	for i: int in range(SPIN_COUNT):
 		var shown: bool = i < channels
-		checks[i].visible = shown
-		spins[i].visible = shown
+		_checks[i].visible = shown
+		_spin_from[i].visible = shown
+		_spin_to[i].visible = shown
 		if not shown:
 			continue
-		checks[i].disabled = angle
+		_checks[i].disabled = angle
 		if angle:
-			checks[i].set_pressed_no_signal(true)
-		_configure_spin(spins[i], angle)
-		if i < values.size():
-			spins[i].set_value_no_signal(values[i])
+			_checks[i].set_pressed_no_signal(true)
+		_configure_spin(_spin_from[i], angle)
+		_configure_spin(_spin_to[i], angle)
+		if i < from_values.size():
+			_spin_from[i].set_value_no_signal(from_values[i])
+		if i < to_values.size():
+			_spin_to[i].set_value_no_signal(to_values[i])
 	_sync_channel_editability()
 
 
@@ -440,11 +427,9 @@ func _update_info() -> void:
 		lines.append("关键帧 %d 个，时间 %.3f ~ %.3f" % [int(ends["count"]), float(ends["time_from"]), float(ends["time_to"])])
 		lines.append("当前首帧：%s" % Core.describe_edit_value(ends["from"]))
 		lines.append("当前尾帧：%s" % Core.describe_edit_value(ends["to"]))
+		lines.append("参与修改的通道：%s" % _describe_active_channels(Core.edit_channel_count(ends["from"])))
 		if Core.is_angle_edit(ends["from"]):
-			lines.append("参与修改的通道：X, Y, Z（欧拉角/度）")
-			lines.append("（旋转轨道按欧拉角编辑，四元数四分量联动，通道勾选不可用）")
-		else:
-			lines.append("参与修改的通道：%s" % _describe_active_channels(Core.channel_count(ends["from"])))
+			lines.append("（旋转轨道按欧拉角(度)编辑；四元数四分量联动，通道勾选不可用）")
 	else:
 		lines.append("（%s）" % String(ends["error"]))
 	lines.append("动画来源：%s" % _animation_source())
@@ -455,7 +440,7 @@ func _describe_active_channels(channels: int) -> String:
 	var names: PackedStringArray = PackedStringArray(["X", "Y", "Z", "W"])
 	var active: PackedStringArray = PackedStringArray()
 	for i: int in range(mini(channels, SPIN_COUNT)):
-		if _check_from[i].button_pressed or _check_to[i].button_pressed:
+		if _checks[i].button_pressed:
 			active.append(names[i])
 	if active.is_empty():
 		return "无（不会做任何修改）"
@@ -569,10 +554,11 @@ func _apply_tracks(track_indices: PackedInt32Array, use_spin_values: bool) -> vo
 			continue
 		var from_value: Variant = ends["from"]
 		var to_value: Variant = ends["to"]
+		var spin_mask: PackedByteArray = _channel_mask(Core.edit_channel_count(from_value))
 		if use_spin_values and track_index == _track_index:
-			from_value = _collect_spin_value(_spin_from, from_value, _channel_mask(_check_from))
-			to_value = _collect_spin_value(_spin_to, to_value, _channel_mask(_check_to))
-		var active: PackedByteArray = _active_mask(Core.channel_count(from_value))
+			from_value = _collect_spin_value(_spin_from, from_value, spin_mask)
+			to_value = _collect_spin_value(_spin_to, to_value, spin_mask)
+		var active: PackedByteArray = _channel_mask(Core.channel_count(from_value))
 		if Core.is_angle_edit(from_value):
 			# 旋转轨道四分量联动，空掩码即「全部参与」
 			active = PackedByteArray()
