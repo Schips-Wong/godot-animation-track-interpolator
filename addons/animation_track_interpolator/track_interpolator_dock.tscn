@@ -3,233 +3,390 @@
 [ext_resource type="Script" path="res://addons/animation_track_interpolator/track_interpolator_dock.gd" id="1_dock"]
 [ext_resource type="Script" path="res://addons/animation_track_interpolator/curve_editor.gd" id="2_curve"]
 
-[node name="AnimationTrackInterpolator" type="VBoxContainer"]
+[node name="AnimationTrackInterpolator" type="VBoxContainer" unique_id=1116020554]
 script = ExtResource("1_dock")
 
-[node name="TargetGrid" type="GridContainer" parent="."]
+[node name="TargetGrid" type="GridContainer" parent="." unique_id=1116446928]
+layout_mode = 2
 columns = 2
 
-[node name="PlayerLabel" type="Label" parent="TargetGrid"]
+[node name="PlayerLabel" type="Label" parent="TargetGrid" unique_id=224207164]
+layout_mode = 2
 text = "AnimationPlayer"
 
-[node name="PlayerRow" type="HBoxContainer" parent="TargetGrid"]
+[node name="PlayerRow" type="HBoxContainer" parent="TargetGrid" unique_id=881475094]
+layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="PlayerOption" type="OptionButton" parent="TargetGrid/PlayerRow"]
+[node name="PlayerOption" type="OptionButton" parent="TargetGrid/PlayerRow" unique_id=1022022186]
 unique_name_in_owner = true
+layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "当前编辑场景中的 AnimationPlayer（带库名的动画会在动画下拉框里显示为 库名/动画名）"
+disabled = true
 
-[node name="RefreshButton" type="Button" parent="TargetGrid/PlayerRow"]
+[node name="RefreshButton" type="Button" parent="TargetGrid/PlayerRow" unique_id=1595815910]
 unique_name_in_owner = true
+layout_mode = 2
 tooltip_text = "重新扫描当前编辑场景中的 AnimationPlayer，并保留原来的选择"
 text = "刷新"
 
-[node name="AnimLabel" type="Label" parent="TargetGrid"]
+[node name="AnimLabel" type="Label" parent="TargetGrid" unique_id=651584136]
+layout_mode = 2
 text = "动画"
 
-[node name="AnimOption" type="OptionButton" parent="TargetGrid"]
+[node name="AnimOption" type="OptionButton" parent="TargetGrid" unique_id=2067649905]
 unique_name_in_owner = true
+layout_mode = 2
 size_flags_horizontal = 3
+disabled = true
 
-[node name="TrackLabel" type="Label" parent="TargetGrid"]
+[node name="TrackLabel" type="Label" parent="TargetGrid" unique_id=1482929163]
+layout_mode = 2
 text = "轨道"
 
-[node name="TrackOption" type="OptionButton" parent="TargetGrid"]
+[node name="TrackOption" type="OptionButton" parent="TargetGrid" unique_id=1953324069]
 unique_name_in_owner = true
+layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "只有数值类轨道（值 / 位置 3D / 旋转 3D / 缩放 3D）可以被插值，其余轨道不可选"
+disabled = true
 
-[node name="InfoLabel" type="Label" parent="."]
+[node name="InfoLabel" type="Label" parent="." unique_id=1641103377]
 unique_name_in_owner = true
+layout_mode = 2
+text = "当前编辑场景里没有 AnimationPlayer。"
 autowrap_mode = 3
-text = "请选择 AnimationPlayer、动画与目标轨道。"
 
-[node name="Sep1" type="HSeparator" parent="."]
+[node name="Sep1" type="HSeparator" parent="." unique_id=2092221489]
+layout_mode = 2
 
-[node name="CurveGrid" type="GridContainer" parent="."]
+[node name="CurveGrid" type="GridContainer" parent="." unique_id=209258523]
+layout_mode = 2
 columns = 2
 
-[node name="CurveLabel" type="Label" parent="CurveGrid"]
+[node name="CurveLabel" type="Label" parent="CurveGrid" unique_id=1323534317]
+layout_mode = 2
 text = "插值方式"
 
-[node name="CurveOption" type="OptionButton" parent="CurveGrid"]
+[node name="CurveOption" type="OptionButton" parent="CurveGrid" unique_id=1519686493]
 unique_name_in_owner = true
+layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "关键帧从起始值过渡到终点值所采用的曲线；选「自定义曲线」可手动拖拽控制点"
+selected = 0
+item_count = 8
+popup/item_0/text = "线性（匀速）"
+popup/item_0/id = 0
+popup/item_1/text = "平滑（缓入缓出）"
+popup/item_1/id = 1
+popup/item_2/text = "缓入（加速）"
+popup/item_2/id = 2
+popup/item_3/text = "缓出（减速）"
+popup/item_3/id = 3
+popup/item_4/text = "正弦过渡"
+popup/item_4/id = 4
+popup/item_5/text = "阶跃（保持起始值到最后一帧）"
+popup/item_5/id = 5
+popup/item_6/id = -1
+popup/item_6/separator = true
+popup/item_7/text = "自定义曲线（可拖拽控制点）"
+popup/item_7/id = 6
 
-[node name="CurveCanvas" type="Control" parent="."]
+[node name="CurveHint" type="Label" parent="." unique_id=1548780837]
+unique_name_in_owner = true
+layout_mode = 2
+text = "拖动控制点即可微调过渡；双击空白加点，右键控制点删点（拖动后自动切换为「自定义曲线」）。"
+autowrap_mode = 3
+
+[node name="CurveCanvas" type="Control" parent="." unique_id=488707576]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
 tooltip_text = "拖动控制点编辑过渡曲线：横轴=时间，纵轴=过渡权重（0=起始值，1=终点值，越界即预动作/回弹）；双击空白加点，右键控制点删点"
 script = ExtResource("2_curve")
 
-[node name="CurveHint" type="Label" parent="."]
-unique_name_in_owner = true
-autowrap_mode = 3
-text = "拖动控制点即可微调过渡；双击空白加点，右键控制点删点（拖动后自动切换为「自定义曲线」）。"
-
-[node name="RangeGrid" type="GridContainer" parent="."]
+[node name="RangeGrid" type="GridContainer" parent="." unique_id=1144142506]
+layout_mode = 2
 columns = 6
 
-[node name="RangeFromLabel" type="Label" parent="RangeGrid"]
+[node name="RangeFromLabel" type="Label" parent="RangeGrid" unique_id=223281588]
+layout_mode = 2
 tooltip_text = "起始值从这个时刻开始生效（秒）。"
 text = "生效范围"
 
-[node name="RangeFromSpin" type="SpinBox" parent="RangeGrid"]
+[node name="RangeFromSpin" type="SpinBox" parent="RangeGrid" unique_id=552179402]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "起始值从这个时刻开始算（秒）。该时刻之前的关键帧保持原值不变。默认 0，即动画开头。"
+min_value = -100000.0
+max_value = 100000.0
+step = 0.01
+allow_greater = true
+allow_lesser = true
+suffix = " s"
+custom_arrow_step = 0.1
+select_all_on_focus = true
 
-[node name="RangeArrow" type="Label" parent="RangeGrid"]
+[node name="RangeArrow" type="Label" parent="RangeGrid" unique_id=35701785]
+layout_mode = 2
 size_flags_horizontal = 4
 text = "→"
 
-[node name="RangeToSpin" type="SpinBox" parent="RangeGrid"]
+[node name="RangeToSpin" type="SpinBox" parent="RangeGrid" unique_id=2103203625]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "终点值到这个时刻为止（秒）。该时刻之后的关键帧保持原值不变。默认等于动画长度。"
+min_value = -100000.0
+max_value = 100000.0
+step = 0.01
+allow_greater = true
+allow_lesser = true
+suffix = " s"
+custom_arrow_step = 0.1
+select_all_on_focus = true
 
-[node name="ResetRangeToAnimationButton" type="Button" parent="RangeGrid"]
+[node name="ResetRangeToAnimationButton" type="Button" parent="RangeGrid" unique_id=52801209]
 unique_name_in_owner = true
+layout_mode = 2
 size_flags_horizontal = 3
-clip_text = true
 tooltip_text = "读取当前动画的长度，把生效范围设成整条动画：0 ~ 动画长度。"
 text = "重置为动画长度"
-
-[node name="ResetRangeToTrackButton" type="Button" parent="RangeGrid"]
-unique_name_in_owner = true
-size_flags_horizontal = 3
 clip_text = true
+
+[node name="ResetRangeToTrackButton" type="Button" parent="RangeGrid" unique_id=724978031]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
 tooltip_text = "读取选中轨道自身的时间跨度，把生效范围设成：首帧时间 ~ 尾帧时间。"
 text = "重置为轨道长度"
+clip_text = true
 
-[node name="RangeHint" type="Label" parent="."]
+[node name="RangeHint" type="Label" parent="." unique_id=1257271935]
 unique_name_in_owner = true
-autowrap_mode = 3
+layout_mode = 2
 text = "只有落在这个时间范围（秒）内的关键帧会被改写，范围外的保持原值；默认等于整条动画（0 ~ 动画长度），切换动画时会自动刷新。"
+autowrap_mode = 3
 
-[node name="ValueGrid" type="GridContainer" parent="."]
+[node name="ValueGrid" type="GridContainer" parent="." unique_id=420626134]
 unique_name_in_owner = true
+layout_mode = 2
 columns = 4
 
-[node name="ModifyLabel" type="Label" parent="ValueGrid"]
+[node name="ModifyLabel" type="Label" parent="ValueGrid" unique_id=1270817509]
+layout_mode = 2
 tooltip_text = "一个通道只有一组勾选框，同时决定起始值/终点值能否修改；未勾选的通道逐帧保持原值"
 text = "修改通道"
 
-[node name="CheckX" type="CheckBox" parent="ValueGrid"]
+[node name="CheckX" type="CheckBox" parent="ValueGrid" unique_id=1159116868]
 unique_name_in_owner = true
+visible = false
+layout_mode = 2
 tooltip_text = "勾选后才能修改 X 的起始值/终点值；未勾选时 X 通道逐帧保持原关键帧数值"
+button_pressed = true
 text = "X"
 alignment = 1
-button_pressed = true
 
-[node name="CheckY" type="CheckBox" parent="ValueGrid"]
+[node name="CheckY" type="CheckBox" parent="ValueGrid" unique_id=1187507007]
 unique_name_in_owner = true
+visible = false
+layout_mode = 2
 tooltip_text = "勾选后才能修改 Y 的起始值/终点值；未勾选时 Y 通道逐帧保持原关键帧数值"
+button_pressed = true
 text = "Y"
 alignment = 1
-button_pressed = true
 
-[node name="CheckZ" type="CheckBox" parent="ValueGrid"]
+[node name="CheckZ" type="CheckBox" parent="ValueGrid" unique_id=1103322951]
 unique_name_in_owner = true
+visible = false
+layout_mode = 2
 tooltip_text = "勾选后才能修改 Z 的起始值/终点值；未勾选时 Z 通道逐帧保持原关键帧数值"
+button_pressed = true
 text = "Z"
 alignment = 1
-button_pressed = true
 
-[node name="CheckW" type="CheckBox" parent="ValueGrid"]
+[node name="CheckW" type="CheckBox" parent="ValueGrid" unique_id=557774931]
 unique_name_in_owner = true
+visible = false
+layout_mode = 2
 tooltip_text = "勾选后才能修改 W 的起始值/终点值；未勾选时 W 通道逐帧保持原关键帧数值"
+button_pressed = true
 text = "W"
 alignment = 1
-button_pressed = true
 
-[node name="FromLabel" type="Label" parent="ValueGrid"]
+[node name="FromLabel" type="Label" parent="ValueGrid" unique_id=1642534328]
+layout_mode = 2
 text = "起始值"
 
-[node name="FromX" type="SpinBox" parent="ValueGrid"]
+[node name="FromX" type="SpinBox" parent="ValueGrid" unique_id=127452053]
 unique_name_in_owner = true
+visible = false
 custom_minimum_size = Vector2(42, 0)
+layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "X 通道的起始值"
+tooltip_text = "该通道的数值（勾选左侧复选框后才能修改）"
+min_value = -1000000.0
+max_value = 1000000.0
+step = 0.001
+allow_greater = true
+allow_lesser = true
+custom_arrow_step = 0.01
+select_all_on_focus = true
 
-[node name="FromY" type="SpinBox" parent="ValueGrid"]
+[node name="FromY" type="SpinBox" parent="ValueGrid" unique_id=278829264]
 unique_name_in_owner = true
+visible = false
 custom_minimum_size = Vector2(42, 0)
+layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "Y 通道的起始值"
+tooltip_text = "该通道的数值（勾选左侧复选框后才能修改）"
+min_value = -1000000.0
+max_value = 1000000.0
+step = 0.001
+allow_greater = true
+allow_lesser = true
+custom_arrow_step = 0.01
+select_all_on_focus = true
 
-[node name="FromZ" type="SpinBox" parent="ValueGrid"]
+[node name="FromZ" type="SpinBox" parent="ValueGrid" unique_id=193649884]
 unique_name_in_owner = true
+visible = false
 custom_minimum_size = Vector2(42, 0)
+layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "Z 通道的起始值"
+tooltip_text = "该通道的数值（勾选左侧复选框后才能修改）"
+min_value = -1000000.0
+max_value = 1000000.0
+step = 0.001
+allow_greater = true
+allow_lesser = true
+custom_arrow_step = 0.01
+select_all_on_focus = true
 
-[node name="FromW" type="SpinBox" parent="ValueGrid"]
+[node name="FromW" type="SpinBox" parent="ValueGrid" unique_id=916519977]
 unique_name_in_owner = true
+visible = false
 custom_minimum_size = Vector2(42, 0)
+layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "W 通道的起始值"
+tooltip_text = "该通道的数值（勾选左侧复选框后才能修改）"
+min_value = -1000000.0
+max_value = 1000000.0
+step = 0.001
+allow_greater = true
+allow_lesser = true
+custom_arrow_step = 0.01
+select_all_on_focus = true
 
-[node name="ToLabel" type="Label" parent="ValueGrid"]
+[node name="ToLabel" type="Label" parent="ValueGrid" unique_id=139108649]
+layout_mode = 2
 text = "终点值"
 
-[node name="ToX" type="SpinBox" parent="ValueGrid"]
+[node name="ToX" type="SpinBox" parent="ValueGrid" unique_id=194324291]
 unique_name_in_owner = true
+visible = false
 custom_minimum_size = Vector2(42, 0)
+layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "X 通道的终点值"
+tooltip_text = "该通道的数值（勾选左侧复选框后才能修改）"
+min_value = -1000000.0
+max_value = 1000000.0
+step = 0.001
+allow_greater = true
+allow_lesser = true
+custom_arrow_step = 0.01
+select_all_on_focus = true
 
-[node name="ToY" type="SpinBox" parent="ValueGrid"]
+[node name="ToY" type="SpinBox" parent="ValueGrid" unique_id=1061110217]
 unique_name_in_owner = true
+visible = false
 custom_minimum_size = Vector2(42, 0)
+layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "Y 通道的终点值"
+tooltip_text = "该通道的数值（勾选左侧复选框后才能修改）"
+min_value = -1000000.0
+max_value = 1000000.0
+step = 0.001
+allow_greater = true
+allow_lesser = true
+custom_arrow_step = 0.01
+select_all_on_focus = true
 
-[node name="ToZ" type="SpinBox" parent="ValueGrid"]
+[node name="ToZ" type="SpinBox" parent="ValueGrid" unique_id=531725166]
 unique_name_in_owner = true
+visible = false
 custom_minimum_size = Vector2(42, 0)
+layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "Z 通道的终点值"
+tooltip_text = "该通道的数值（勾选左侧复选框后才能修改）"
+min_value = -1000000.0
+max_value = 1000000.0
+step = 0.001
+allow_greater = true
+allow_lesser = true
+custom_arrow_step = 0.01
+select_all_on_focus = true
 
-[node name="ToW" type="SpinBox" parent="ValueGrid"]
+[node name="ToW" type="SpinBox" parent="ValueGrid" unique_id=2050556165]
 unique_name_in_owner = true
+visible = false
 custom_minimum_size = Vector2(42, 0)
+layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "W 通道的终点值"
+tooltip_text = "该通道的数值（勾选左侧复选框后才能修改）"
+min_value = -1000000.0
+max_value = 1000000.0
+step = 0.001
+allow_greater = true
+allow_lesser = true
+custom_arrow_step = 0.01
+select_all_on_focus = true
 
-[node name="ReloadValuesButton" type="Button" parent="."]
+[node name="ReloadValuesButton" type="Button" parent="." unique_id=1895723366]
 unique_name_in_owner = true
+layout_mode = 2
 tooltip_text = "用当前轨道首/尾关键帧的值，重新填充上面的起始值与终点值"
 text = "从首尾关键帧重新读取"
 
-[node name="KeepOnlyEndsCheck" type="CheckButton" parent="."]
+[node name="KeepOnlyEndsCheck" type="CheckButton" parent="." unique_id=1613515174]
 unique_name_in_owner = true
+layout_mode = 2
 tooltip_text = "勾选后删除中间关键帧，只保留首尾两帧，由 Godot 自身在这两个值之间过渡"
 text = "只保留首尾两个关键帧"
 
-[node name="Sep2" type="HSeparator" parent="."]
+[node name="Sep2" type="HSeparator" parent="." unique_id=1432610933]
+layout_mode = 2
 
-[node name="ActionRow" type="HBoxContainer" parent="."]
+[node name="ActionRow" type="HBoxContainer" parent="." unique_id=751892803]
+layout_mode = 2
 
-[node name="ApplyButton" type="Button" parent="ActionRow"]
+[node name="ApplyButton" type="Button" parent="ActionRow" unique_id=1576754730]
 unique_name_in_owner = true
+layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "用上面的起始值/终点值与插值方式，重写选中轨道中已勾选通道的关键帧"
+disabled = true
 text = "应用到选中轨道"
 
-[node name="ApplyAllButton" type="Button" parent="ActionRow"]
+[node name="ApplyAllButton" type="Button" parent="ActionRow" unique_id=1896544684]
 unique_name_in_owner = true
+layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "对该动画里所有数值轨道，分别用各自的首/尾关键帧值做同样的过渡（仍然只处理已勾选的通道）"
+disabled = true
 text = "应用到全部数值轨道"
 
-[node name="StatusLabel" type="Label" parent="."]
+[node name="StatusLabel" type="Label" parent="." unique_id=358460308]
 unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.55, 0.45, 1)
+text = "没有可用的 AnimationPlayer。"
 autowrap_mode = 3
 
-[node name="Spacer" type="Control" parent="."]
+[node name="Spacer" type="Control" parent="." unique_id=1888841946]
+layout_mode = 2
 size_flags_vertical = 3
