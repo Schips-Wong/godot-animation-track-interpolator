@@ -93,18 +93,131 @@ popup/item_6/separator = true
 popup/item_7/text = "自定义曲线（可拖拽控制点）"
 popup/item_7/id = 6
 
-[node name="CurveHint" type="Label" parent="." unique_id=1548780837]
+[node name="CurveModeRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="CurveModeLabel" type="Label" parent="CurveModeRow"]
+layout_mode = 2
+tooltip_text = "曲线的图形模型（图表操作方式）；手动调整后会自动切到「自定义曲线」。"
+text = "图表方式"
+
+[node name="ModePointsButton" type="Button" parent="CurveModeRow"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "拖动控制点即可微调过渡；双击空白加点，右键控制点删点（拖动后自动切换为「自定义曲线」）。"
-autowrap_mode = 3
+toggle_mode = true
+button_pressed = true
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "多控制点：任意个控制点用平滑曲线连接；双击空白加点，右键点删点。"
+text = "多控制点"
+
+[node name="ModeBezierButton" type="Button" parent="CurveModeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "两点三次贝塞尔（同 CSS cubic-bezier）：拖 h1 / h2 两个手柄控制缓动形状。"
+text = "贝塞尔"
+
+[node name="ModeElasticButton" type="Button" parent="CurveModeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "弹性：拖「振幅 / 周期」两个手柄做带回弹的缓动曲线。"
+text = "弹性"
 
 [node name="CurveCanvas" type="Control" parent="." unique_id=488707576]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 120)
+custom_minimum_size = Vector2(0, 140)
 layout_mode = 2
-tooltip_text = "拖动控制点编辑过渡曲线：横轴=时间，纵轴=过渡权重（0=起始值，1=终点值，越界即预动作/回弹）；双击空白加点，右键控制点删点"
+tooltip_text = "编辑过渡曲线：横轴=时间，纵轴=过渡权重（0=起始值，1=终点值，越界即预动作/回弹）。左键拖手柄、空白处或中键拖拽平移、滚轮缩放。"
 script = ExtResource("2_curve")
+
+[node name="CurveHint" type="Label" parent="." unique_id=1548780837]
+unique_name_in_owner = true
+layout_mode = 2
+text = "拖动图形即可微调过渡；滚轮缩放、空白处拖拽平移（拖动后自动切换为「自定义曲线」）。"
+autowrap_mode = 3
+
+[node name="CurveToolGrid" type="GridContainer" parent="."]
+layout_mode = 2
+columns = 3
+
+[node name="CurveLinearButton" type="Button" parent="CurveToolGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "把当前图形改成线性（y = x）。"
+text = "线性"
+
+[node name="CurveStepButton" type="Button" parent="CurveToolGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "把当前图形改成阶跃（保持起始值到最后一刻）。"
+text = "阶跃"
+
+[node name="CurveMirrorButton" type="Button" parent="CurveToolGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "水平镜像当前图形，得到反向缓动（缓出 ↔ 缓入）。"
+text = "镜像"
+
+[node name="CurveResetButton" type="Button" parent="CurveToolGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "用当前「插值方式」重新取样，重置整条图形。"
+text = "重置曲线"
+
+[node name="CurveCopyButton" type="Button" parent="CurveToolGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "复制当前图形到插件内的剪贴板。"
+text = "复制"
+
+[node name="CurvePasteButton" type="Button" parent="CurveToolGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "把剪贴板里的图形粘贴过来。"
+text = "粘贴"
+
+[node name="CurveEaseButton" type="Button" parent="CurveToolGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "切换弹性缓动方向：缓出 → 缓入 → 缓入缓出（只在「弹性」方式下生效）。"
+text = "弹性·缓出"
+
+[node name="CurveAutoButton" type="Button" parent="CurveToolGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "开启后，每次改动曲线都会自动把当前选中的轨道应用一次（可随时关闭）。"
+text = "自动应用"
+
+[node name="CurveViewButton" type="Button" parent="CurveToolGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+clip_text = true
+tooltip_text = "把曲线视图的缩放与平移复位。"
+text = "复位视图"
 
 [node name="RangeGrid" type="GridContainer" parent="." unique_id=1144142506]
 layout_mode = 2

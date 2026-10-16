@@ -27,6 +27,8 @@ var _spin_to: Array[SpinBox] = []
 var _checks: Array[CheckBox] = []
 var _poll_accumulator: float = 0.0
 var _known_scene_id: int = 0
+## 工具条「复制 / 粘贴」用的曲线剪贴板。
+var _curve_clipboard: Dictionary = {}
 
 @onready var _player_option: OptionButton = %PlayerOption
 @onready var _refresh_button: Button = %RefreshButton
@@ -35,6 +37,18 @@ var _known_scene_id: int = 0
 @onready var _info_label: Label = %InfoLabel
 @onready var _curve_option: OptionButton = %CurveOption
 @onready var _curve_canvas: CurveCanvas = %CurveCanvas
+@onready var _mode_points_button: Button = %ModePointsButton
+@onready var _mode_bezier_button: Button = %ModeBezierButton
+@onready var _mode_elastic_button: Button = %ModeElasticButton
+@onready var _curve_linear_button: Button = %CurveLinearButton
+@onready var _curve_step_button: Button = %CurveStepButton
+@onready var _curve_mirror_button: Button = %CurveMirrorButton
+@onready var _curve_reset_button: Button = %CurveResetButton
+@onready var _curve_copy_button: Button = %CurveCopyButton
+@onready var _curve_paste_button: Button = %CurvePasteButton
+@onready var _curve_ease_button: Button = %CurveEaseButton
+@onready var _curve_auto_button: Button = %CurveAutoButton
+@onready var _curve_view_button: Button = %CurveViewButton
 @onready var _range_from_spin: SpinBox = %RangeFromSpin
 @onready var _range_to_spin: SpinBox = %RangeToSpin
 @onready var _reset_range_animation_button: Button = %ResetRangeToAnimationButton
@@ -91,9 +105,10 @@ func _ready() -> void:
 		_curve_option.add_item(labels[i], i)
 	_curve_option.select(Core.CURVE_LINEAR)
 	_curve_option.item_selected.connect(_on_curve_selected)
+	_setup_curve_tools()
 	_curve_canvas.edit_started.connect(_on_curve_edit_started)
-	_curve_canvas.points_changed.connect(_on_curve_points_changed)
-	_curve_canvas.set_points(Core.preset_points(Core.CURVE_LINEAR))
+	_curve_canvas.shape_changed.connect(_on_curve_shape_changed)
+	_curve_canvas.set_preset_points(Core.preset_points(Core.CURVE_LINEAR))
 
 	_refresh_button.pressed.connect(_on_refresh_pressed)
 	_player_option.item_selected.connect(_on_player_selected)
@@ -587,20 +602,26 @@ func _on_curve_selected(index: int) -> void:
 	var id: int = _curve_option.get_item_id(index)
 	if id == Core.CURVE_CUSTOM:
 		return
-	_curve_canvas.set_points(Core.preset_points(id))
+	_apply_preset_to_canvas(id)
 	_update_info()
 
 
-## 一旦手动动过控制点，就切到「自定义曲线」。
+## 一旦手动改过图形，就切到「自定义曲线」。
 func _on_curve_edit_started() -> void:
+	_select_custom_curve()
+	_update_info()
+
+
+func _on_curve_shape_changed(_shape: Dictionary) -> void:
+	_sync_ease_button()
+	_update_info()
+	_auto_apply_if_enabled()
+
+
+func _select_custom_curve() -> void:
 	var custom_index: int = _custom_curve_index()
 	if custom_index >= 0 and _curve_option.selected != custom_index:
 		_curve_option.select(custom_index)
-	_update_info()
-
-
-func _on_curve_points_changed(_points: PackedVector2Array) -> void:
-	_update_info()
 
 
 func _custom_curve_index() -> int:
@@ -610,14 +631,170 @@ func _custom_curve_index() -> int:
 	return -1
 
 
+func _apply_preset_to_canvas(preset_id: int) -> void:
+	_curve_canvas.set_preset_points(Core.preset_points(preset_id))
+	_sync_curve_mode_buttons()
+
+
+# ---------------------------------------------------------------- 图表操作方式 / 工具条
+
+## 三种图形模型做成单选按钮，并接上工具条。
+func _setup_curve_tools() -> void:
+	var group: ButtonGroup = ButtonGroup.new()
+	for button: Button in [_mode_points_button, _mode_bezier_button, _mode_elastic_button]:
+		button.button_group = group
+		button.toggled.connect(_on_curve_mode_toggled)
+	_curve_linear_button.pressed.connect(_on_curve_make_linear)
+	_curve_step_button.pressed.connect(_on_curve_make_step)
+	_curve_mirror_button.pressed.connect(_on_curve_mirror)
+	_curve_reset_button.pressed.connect(_on_curve_reset)
+	_curve_copy_button.pressed.connect(_on_curve_copy)
+	_curve_paste_button.pressed.connect(_on_curve_paste)
+	_curve_ease_button.pressed.connect(_on_curve_cycle_ease)
+	_curve_auto_button.toggled.connect(_on_auto_apply_toggled)
+	_curve_view_button.pressed.connect(_on_curve_reset_view)
+	_curve_paste_button.disabled = true
+	_sync_curve_mode_buttons()
+	_sync_ease_button()
+
+
+## 把画布当前的图形模型同步到三个单选按钮上。
+func _sync_curve_mode_buttons() -> void:
+	var mode: int = _curve_canvas.get_mode()
+	_mode_points_button.set_pressed_no_signal(mode == Core.SHAPE_POINTS)
+	_mode_bezier_button.set_pressed_no_signal(mode == Core.SHAPE_BEZIER)
+	_mode_elastic_button.set_pressed_no_signal(mode == Core.SHAPE_ELASTIC)
+
+
+func _sync_ease_button() -> void:
+	var labels: PackedStringArray = Core.ease_labels()
+	var ease: int = clampi(int(_curve_canvas.get_shape().get("ease", Core.EASE_OUT)), 0, labels.size() - 1)
+	_curve_ease_button.text = "弹性·%s" % labels[ease]
+
+
+func _on_curve_mode_toggled(pressed: bool) -> void:
+	if not pressed:
+		return
+	var mode: int = Core.SHAPE_POINTS
+	if _mode_bezier_button.button_pressed:
+		mode = Core.SHAPE_BEZIER
+	elif _mode_elastic_button.button_pressed:
+		mode = Core.SHAPE_ELASTIC
+	_curve_canvas.set_mode(mode)
+	# 换图形模型即意味着要按自定义曲线插值。
+	_select_custom_curve()
+	_sync_ease_button()
+	_update_info()
+	_auto_apply_if_enabled()
+
+
+## 用给定的图形替换画布内容，并切到「自定义曲线」。
+func _set_curve_shape(shape: Dictionary) -> void:
+	_curve_canvas.set_shape(shape)
+	_sync_curve_mode_buttons()
+	_sync_ease_button()
+	_select_custom_curve()
+	_update_info()
+	_auto_apply_if_enabled()
+
+
+## 保留图形里的其他参数，只把控制点换成 points（工具条里的「线性 / 阶跃」用）。
+func _shape_with_points(points: PackedVector2Array) -> Dictionary:
+	var shape: Dictionary = _curve_canvas.get_shape()
+	shape["mode"] = Core.SHAPE_POINTS
+	shape["points"] = Core.normalize_points(points)
+	return shape
+
+
+func _on_curve_make_linear() -> void:
+	_set_curve_shape(_shape_with_points(Core.preset_points(Core.CURVE_LINEAR)))
+	_set_status("曲线已改为线性。", true)
+
+
+func _on_curve_make_step() -> void:
+	_set_curve_shape(_shape_with_points(Core.preset_points(Core.CURVE_STEP)))
+	_set_status("曲线已改为阶跃。", true)
+
+
+func _on_curve_mirror() -> void:
+	_set_curve_shape(Core.mirror_shape(_curve_canvas.get_shape()))
+	_set_status("曲线已水平镜像（反向缓动）。", true)
+
+
+func _on_curve_reset() -> void:
+	var id: int = _curve_option.get_selected_id()
+	if id < 0 or id == Core.CURVE_CUSTOM:
+		id = Core.CURVE_LINEAR
+	_apply_preset_to_canvas(id)
+	_update_info()
+	_set_status("曲线已按「%s」重置。" % Core.curve_labels()[id], true)
+
+
+func _on_curve_copy() -> void:
+	_curve_clipboard = _curve_canvas.get_shape()
+	_curve_paste_button.disabled = false
+	_set_status("已复制当前曲线。", true)
+
+
+func _on_curve_paste() -> void:
+	if _curve_clipboard.is_empty():
+		_set_status("剪贴板里还没有曲线。", false)
+		return
+	_set_curve_shape(_curve_clipboard)
+	_set_status("已粘贴曲线。", true)
+
+
+func _on_curve_cycle_ease() -> void:
+	var shape: Dictionary = _curve_canvas.get_shape()
+	shape["ease"] = (int(shape.get("ease", Core.EASE_OUT)) + 1) % Core.ease_labels().size()
+	_set_curve_shape(shape)
+	_set_status("弹性缓动方向：%s。" % Core.ease_labels()[int(shape["ease"])], true)
+
+
+func _on_curve_reset_view() -> void:
+	_curve_canvas.reset_view()
+	_set_status("曲线视图已复位。", true)
+
+
+func _on_auto_apply_toggled(pressed: bool) -> void:
+	if not pressed:
+		_set_status("已关闭自动应用。", true)
+		return
+	_set_status("已开启自动应用：改动曲线会立刻写入选中轨道。", true)
+	_auto_apply_if_enabled()
+
+
+## 自动应用：开启且有可写轨道时，直接把当前曲线应用到该轨道。
+## 走的是和「应用到选中轨道」相同的撤销记录，所以撤销栈依然干净。
+func _auto_apply_if_enabled() -> void:
+	if not _curve_auto_button.button_pressed:
+		return
+	if _animation == null or _track_index < 0 or _apply_button.disabled:
+		return
+	_apply_tracks(PackedInt32Array([_track_index]), true)
+
+
 ## 信息栏里对当前曲线的描述。
 func _describe_curve() -> String:
 	var index: int = _curve_option.selected
 	if index < 0:
 		return "未选择"
-	if _curve_option.get_item_id(index) == Core.CURVE_CUSTOM:
-		return "自定义曲线（%d 个控制点）" % _curve_canvas.get_points().size()
-	return String(_curve_option.get_item_text(index))
+	if _curve_option.get_item_id(index) != Core.CURVE_CUSTOM:
+		return String(_curve_option.get_item_text(index))
+	var shape: Dictionary = _curve_canvas.get_shape()
+	var labels: PackedStringArray = Core.shape_mode_labels()
+	var mode: int = clampi(int(shape.get("mode", Core.SHAPE_POINTS)), 0, labels.size() - 1)
+	match mode:
+		Core.SHAPE_BEZIER:
+			var h1: Vector2 = shape.get("h1", Vector2.ZERO)
+			var h2: Vector2 = shape.get("h2", Vector2.ZERO)
+			return "自定义·贝塞尔(%.2f, %.2f)(%.2f, %.2f)" % [h1.x, h1.y, h2.x, h2.y]
+		Core.SHAPE_ELASTIC:
+			var ease_labels: PackedStringArray = Core.ease_labels()
+			var ease: int = clampi(int(shape.get("ease", Core.EASE_OUT)), 0, ease_labels.size() - 1)
+			return "自定义·弹性 %s 振幅 %.2f 周期 %.2f" % [ease_labels[ease], float(shape.get("amplitude", 1.0)), float(shape.get("period", 0.3))]
+	var points: PackedVector2Array = shape.get("points", PackedVector2Array())
+	return "自定义·多控制点（%d 点）" % points.size()
 
 
 func _on_reload_values_pressed() -> void:
@@ -668,7 +845,7 @@ func _apply_tracks(track_indices: PackedInt32Array, use_spin_values: bool) -> vo
 	var curve: int = _curve_option.get_selected_id()
 	if curve < 0:
 		curve = Core.CURVE_LINEAR
-	var curve_points: PackedVector2Array = _curve_canvas.get_points()
+	var curve_shape: Dictionary = _curve_canvas.get_shape()
 	var keep_only_ends: bool = _keep_ends_check.button_pressed
 	if use_spin_values and _range_to_spin.value - _range_from_spin.value <= 0.000001:
 		_set_status("生效范围的结束时刻必须大于起始时刻。", false)
@@ -694,7 +871,7 @@ func _apply_tracks(track_indices: PackedInt32Array, use_spin_values: bool) -> vo
 			to_value = _collect_spin_value(_spin_to, to_value, spin_mask)
 		# 旋转轨道按欧拉角的三个轴勾选；全选时走 slerp，部分勾选时按欧拉角逐分量过渡。
 		var active: PackedByteArray = _channel_mask(Core.edit_channel_count(from_value))
-		var built: Dictionary = Core.build_keys(_animation, track_index, from_value, to_value, curve, keep_only_ends, active, curve_points, active_range)
+		var built: Dictionary = Core.build_keys(_animation, track_index, from_value, to_value, curve, keep_only_ends, active, curve_shape, active_range)
 		if not bool(built["ok"]):
 			skipped += 1
 			if track_indices.size() == 1:

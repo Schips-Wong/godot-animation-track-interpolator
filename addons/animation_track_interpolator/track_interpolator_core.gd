@@ -13,12 +13,22 @@ const CURVE_EASE_IN: int = 2 ## 缓入（加速）
 const CURVE_EASE_OUT: int = 3 ## 缓出（减速）
 const CURVE_SINE: int = 4 ## 正弦过渡
 const CURVE_STEP: int = 5 ## 阶跃：保持起始值直到最后一帧
-const CURVE_CUSTOM: int = 6 ## 自定义曲线：权重由可编辑的控制点决定
+const CURVE_CUSTOM: int = 6 ## 自定义曲线：权重由可编辑的图形决定（见 SHAPE_*）
 
 const EPSILON: float = 0.000001
 
 ## 旋转轨道在界面上按欧拉角的三个轴（X/Y/Z）编辑。
 const ANGLE_CHANNEL_COUNT: int = 3
+
+## 「自定义曲线」的图形模型（图表操作方式）。
+const SHAPE_POINTS: int = 0 ## 多控制点：任意个控制点，用 Hermite 平滑连接
+const SHAPE_BEZIER: int = 1 ## 两点三次贝塞尔：用 h1 / h2 两个手柄（同 CSS cubic-bezier）
+const SHAPE_ELASTIC: int = 2 ## 弹性：用「振幅 / 周期」两个手柄做带回弹的缓动
+
+## 弹性缓动的方向。
+const EASE_IN: int = 0
+const EASE_OUT: int = 1
+const EASE_IN_OUT: int = 2
 
 
 ## 支持的插值方式显示名（顺序与 Curve 枚举一致）。
@@ -231,12 +241,150 @@ static func curve_weight(curve: int, t: float) -> float:
 	return x
 
 
+## 三种图形模型的显示名（顺序与 SHAPE_* 一致）。
+static func shape_mode_labels() -> PackedStringArray:
+	return PackedStringArray(["多控制点", "贝塞尔", "弹性"])
+
+
+## 弹性缓动方向的显示名（顺序与 EASE_* 一致）。
+static func ease_labels() -> PackedStringArray:
+	return PackedStringArray(["缓入", "缓出", "缓入缓出"])
+
+
+## 自定义曲线的默认图形。所有模型都保证权重 0->0、1->1，且允许中途越界（回弹 / 预动作）。
+static func default_shape() -> Dictionary:
+	return {
+		"mode": SHAPE_POINTS,
+		"points": PackedVector2Array([Vector2(0.0, 0.0), Vector2(1.0, 1.0)]),
+		"h1": Vector2(0.25, 0.0),
+		"h2": Vector2(0.75, 1.0),
+		"amplitude": 1.0,
+		"period": 0.3,
+		"ease": EASE_OUT,
+	}
+
+
+## 按图形模型求权重。
+static func shape_weight(shape: Dictionary, t: float) -> float:
+	var x: float = clampf(t, 0.0, 1.0)
+	match int(shape.get("mode", SHAPE_POINTS)):
+		SHAPE_BEZIER:
+			var h1: Vector2 = shape.get("h1", Vector2(0.25, 0.0))
+			var h2: Vector2 = shape.get("h2", Vector2(0.75, 1.0))
+			return bezier_weight(h1, h2, x)
+		SHAPE_ELASTIC:
+			return elastic_weight(
+				float(shape.get("amplitude", 1.0)),
+				float(shape.get("period", 0.3)),
+				int(shape.get("ease", EASE_OUT)),
+				x
+			)
+	var points: PackedVector2Array = shape.get("points", PackedVector2Array([Vector2(0.0, 0.0), Vector2(1.0, 1.0)]))
+	return sample_curve(points, x)
+
+
 ## 归一化时间 t(0~1) 在指定方式下的插值权重。
-## curve 为 CURVE_CUSTOM 时改用 points（控制点）采样，否则走内置公式。
-static func weight_for(curve: int, t: float, points: PackedVector2Array = PackedVector2Array()) -> float:
-	if curve == CURVE_CUSTOM and points.size() >= 2:
-		return sample_curve(points, t)
+## curve 为 CURVE_CUSTOM 时改用 shape（图形）求值，否则走内置公式。
+static func weight_for(curve: int, t: float, shape: Dictionary = {}) -> float:
+	if curve == CURVE_CUSTOM and not shape.is_empty():
+		return shape_weight(shape, t)
 	return curve_weight(curve, t)
+
+
+## 把一个点绕 1x1 的中心做点对称（x -> 1-x，y -> 1-y）。
+## 缓动曲线必须保持 0->0、1->1，所以「反向缓动」等价于 M(t) = 1 - B(1-t)，即点对称后再把时间轴倒过来。
+static func mirror_point(point: Vector2) -> Vector2:
+	return Vector2(1.0 - clampf(point.x, 0.0, 1.0), 1.0 - point.y)
+
+
+## 把图形镜像成反向缓动：缓出 ↔ 缓入，预动作 ↔ 回弹。
+static func mirror_shape(shape: Dictionary) -> Dictionary:
+	var out: Dictionary = shape.duplicate(true)
+	match int(out.get("mode", SHAPE_POINTS)):
+		SHAPE_BEZIER:
+			var h1: Vector2 = out.get("h1", Vector2(0.25, 0.0))
+			var h2: Vector2 = out.get("h2", Vector2(0.75, 1.0))
+			out["h1"] = mirror_point(h2)
+			out["h2"] = mirror_point(h1)
+		SHAPE_ELASTIC:
+			var ease: int = int(out.get("ease", EASE_OUT))
+			out["ease"] = EASE_IN if ease == EASE_OUT else (EASE_OUT if ease == EASE_IN else EASE_IN_OUT)
+		_:
+			var mirrored: PackedVector2Array = PackedVector2Array()
+			var points: PackedVector2Array = out.get("points", PackedVector2Array())
+			for i: int in range(points.size() - 1, -1, -1):
+				mirrored.append(mirror_point(points[i]))
+			out["points"] = mirrored
+	return out
+
+
+# ---------------------------------------------------------------- 贝塞尔模型
+
+## 两点三次贝塞尔：P0=(0,0)、P1=h1、P2=h2、P3=(1,1)。
+## h 的 x 分量被限制在 0~1（保证曲线是 x 的单调函数、可以反解）；y 分量不受限，因此可以越界回弹。
+static func bezier_weight(h1: Vector2, h2: Vector2, x: float) -> float:
+	var x1: float = clampf(h1.x, 0.0, 1.0)
+	var x2: float = clampf(h2.x, 0.0, 1.0)
+	var u: float = bezier_solve_u(x1, x2, clampf(x, 0.0, 1.0))
+	return _bezier_axis(u, h1.y, h2.y)
+
+
+## 三次贝塞尔在参数 u 处的某一轴取值（两个控制点坐标 + 固定的 0 / 1 端点）。
+static func _bezier_axis(u: float, a: float, b: float) -> float:
+	var v: float = 1.0 - u
+	return 3.0 * v * v * u * a + 3.0 * v * u * u * b + u * u * u
+
+
+## 已知横坐标 x 反解参数 u：先牛顿迭代，失败则退回二分。
+static func bezier_solve_u(x1: float, x2: float, x: float) -> float:
+	var u: float = clampf(x, 0.0, 1.0)
+	for i: int in range(8):
+		var error: float = _bezier_axis(u, x1, x2) - x
+		if absf(error) < 0.0000001:
+			return u
+		var v: float = 1.0 - u
+		var slope: float = 3.0 * v * v * x1 + 6.0 * v * u * (x2 - x1) + 3.0 * u * u * (1.0 - x2)
+		if absf(slope) < EPSILON:
+			break
+		u = clampf(u - error / slope, 0.0, 1.0)
+	var low: float = 0.0
+	var high: float = 1.0
+	for i: int in range(24):
+		u = 0.5 * (low + high)
+		if _bezier_axis(u, x1, x2) < x:
+			low = u
+		else:
+			high = u
+	return u
+
+
+# ---------------------------------------------------------------- 弹性模型
+
+## 弹性缓动（Penner 经典公式）。amplitude 是回弹幅度，period 是振荡周期，ease 选缓入 / 缓出 / 缓入缓出。
+static func elastic_weight(amplitude: float, period: float, ease: int, x: float) -> float:
+	var t: float = clampf(x, 0.0, 1.0)
+	match ease:
+		EASE_IN:
+			return 1.0 - _elastic_out(1.0 - t, amplitude, period)
+		EASE_IN_OUT:
+			if t < 0.5:
+				return 0.5 * (1.0 - _elastic_out(1.0 - 2.0 * t, amplitude, period))
+			return 0.5 + 0.5 * _elastic_out(2.0 * t - 1.0, amplitude, period)
+	return _elastic_out(t, amplitude, period)
+
+
+## 弹性缓出的基函数：w(0)=0、w(1)=1，中间围绕终点来回振荡并衰减。
+static func _elastic_out(t: float, amplitude: float, period: float) -> float:
+	if t <= 0.0:
+		return 0.0
+	if t >= 1.0:
+		return 1.0
+	var a: float = maxf(amplitude, 0.05)
+	var p: float = clampf(period, 0.02, 2.0)
+	var phase: float = p / 4.0
+	if a > 1.0:
+		phase = p / TAU * asin(clampf(1.0 / a, -1.0, 1.0))
+	return a * pow(2.0, -10.0 * t) * sin((t - phase) * TAU / p) + 1.0
 
 
 ## 把控制点整理成可采样形式：按 x 升序、x 限制在 0~1、去掉重复 x，并保证首点 x=0、末点 x=1。
@@ -321,8 +469,8 @@ static func preset_points(curve: int, segments: int = 4) -> PackedVector2Array:
 
 
 ## 在 from_value 与 to_value 之间按指定的方式过渡。四元数走 slerp 保证旋转正确。
-static func interpolate_value(curve: int, t: float, from_value: Variant, to_value: Variant, points: PackedVector2Array = PackedVector2Array()) -> Variant:
-	var weight: float = weight_for(curve, t, points)
+static func interpolate_value(curve: int, t: float, from_value: Variant, to_value: Variant, shape: Dictionary = {}) -> Variant:
+	var weight: float = weight_for(curve, t, shape)
 	if typeof(from_value) == TYPE_QUATERNION and typeof(to_value) == TYPE_QUATERNION:
 		var qa: Quaternion = from_value
 		var qb: Quaternion = to_value
@@ -428,10 +576,10 @@ static func range_position(time: float, range_from: float, range_to: float) -> f
 ## 计算重写后的关键帧序列。
 ## active_channels 是每个通道是否参与修改的掩码（1=参与，0=保持该关键帧原值）；
 ## 掩码比通道数短时，缺省视为参与。两侧都不参与的通道完全不动。
-## curve_points 仅在 curve 为 CURVE_CUSTOM 时生效，用来决定每一帧的过渡权重。
+## curve_shape 仅在 curve 为 CURVE_CUSTOM 时生效，用来决定每一帧的过渡权重。
 ## active_range 见 default_range()：范围外的关键帧原值不动，范围内的按曲线过渡。
 ## 返回 {"ok": bool, "error": String, "keys": Array}
-static func build_keys(animation: Animation, track_index: int, from_value: Variant, to_value: Variant, curve: int, keep_only_ends: bool, active_channels: PackedByteArray, curve_points: PackedVector2Array = PackedVector2Array(), active_range: Dictionary = {}) -> Dictionary:
+static func build_keys(animation: Animation, track_index: int, from_value: Variant, to_value: Variant, curve: int, keep_only_ends: bool, active_channels: PackedByteArray, curve_shape: Dictionary = {}, active_range: Dictionary = {}) -> Dictionary:
 	var ends: Dictionary = read_track_ends(animation, track_index)
 	if not bool(ends["ok"]):
 		return _fail(String(ends["error"]))
@@ -471,12 +619,12 @@ static func build_keys(animation: Animation, track_index: int, from_value: Varia
 		# 范围内只留两帧（范围起点、范围终点），范围外的关键帧原样保留。
 		keys.append({
 			"time": range_from,
-			"value": _key_value(curve, 0.0, from_value, to_value, animation.track_get_key_value(track_index, first_inside), active_channels, curve_points),
+			"value": _key_value(curve, 0.0, from_value, to_value, animation.track_get_key_value(track_index, first_inside), active_channels, curve_shape),
 			"transition": 1.0,
 		})
 		keys.append({
 			"time": range_to,
-			"value": _key_value(curve, 1.0, from_value, to_value, animation.track_get_key_value(track_index, last_inside), active_channels, curve_points),
+			"value": _key_value(curve, 1.0, from_value, to_value, animation.track_get_key_value(track_index, last_inside), active_channels, curve_shape),
 			"transition": 1.0,
 		})
 		for i: int in range(count):
@@ -499,7 +647,7 @@ static func build_keys(animation: Animation, track_index: int, from_value: Varia
 		var position: float = range_position(time, range_from, range_to)
 		keys.append({
 			"time": time,
-			"value": _key_value(curve, position, from_value, to_value, original, active_channels, curve_points),
+			"value": _key_value(curve, position, from_value, to_value, original, active_channels, curve_shape),
 			"transition": transition,
 		})
 	return {"ok": true, "error": "", "keys": keys}
@@ -509,24 +657,24 @@ static func build_keys(animation: Animation, track_index: int, from_value: Varia
 ## 旋转轨道：三个欧拉分量都参与时用 slerp（最短路径的旋转过渡）；
 ## 只勾选部分分量时在欧拉角空间按分量过渡，未勾选的分量保持该关键帧原值。
 ## 其余类型：逐分量插值，未勾选的分量换回该关键帧原值。
-static func _key_value(curve: int, t: float, from_value: Variant, to_value: Variant, original: Variant, active_channels: PackedByteArray, curve_points: PackedVector2Array = PackedVector2Array()) -> Variant:
+static func _key_value(curve: int, t: float, from_value: Variant, to_value: Variant, original: Variant, active_channels: PackedByteArray, curve_shape: Dictionary = {}) -> Variant:
 	var position: float = clampf(t, 0.0, 1.0)
 	if typeof(from_value) == TYPE_QUATERNION:
 		if count_active_channels(active_channels, ANGLE_CHANNEL_COUNT) >= ANGLE_CHANNEL_COUNT:
-			return interpolate_value(curve, position, from_value, to_value, curve_points)
-		return _blend_euler(curve, position, from_value, to_value, original, active_channels, curve_points)
-	var blended: Variant = _cast_like(original, interpolate_value(curve, position, from_value, to_value, curve_points))
+			return interpolate_value(curve, position, from_value, to_value, curve_shape)
+		return _blend_euler(curve, position, from_value, to_value, original, active_channels, curve_shape)
+	var blended: Variant = _cast_like(original, interpolate_value(curve, position, from_value, to_value, curve_shape))
 	return _merge_channels(original, blended, active_channels)
 
 
 ## 欧拉角空间的逐分量过渡：勾选的分量从起始角过渡到终点角，其余分量取该关键帧原角度。
-static func _blend_euler(curve: int, t: float, from_value: Variant, to_value: Variant, original: Variant, active_channels: PackedByteArray, curve_points: PackedVector2Array = PackedVector2Array()) -> Variant:
+static func _blend_euler(curve: int, t: float, from_value: Variant, to_value: Variant, original: Variant, active_channels: PackedByteArray, curve_shape: Dictionary = {}) -> Variant:
 	var from_euler: PackedFloat64Array = value_to_edit_channels(from_value)
 	var to_euler: PackedFloat64Array = value_to_edit_channels(to_value)
 	var original_euler: PackedFloat64Array = value_to_edit_channels(original)
 	if from_euler.size() < ANGLE_CHANNEL_COUNT or original_euler.size() < ANGLE_CHANNEL_COUNT:
 		return original
-	var weight: float = weight_for(curve, t, curve_points)
+	var weight: float = weight_for(curve, t, curve_shape)
 	var mixed: PackedFloat64Array = PackedFloat64Array()
 	for i: int in range(ANGLE_CHANNEL_COUNT):
 		var active: bool = i >= active_channels.size() or active_channels[i] != 0
