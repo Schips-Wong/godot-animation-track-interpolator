@@ -146,22 +146,6 @@ autowrap_mode = 3
 layout_mode = 2
 columns = 3
 
-[node name="CurveLinearButton" type="Button" parent="CurveToolGrid"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-clip_text = true
-tooltip_text = "把当前图形改成线性（y = x）。"
-text = "线性"
-
-[node name="CurveStepButton" type="Button" parent="CurveToolGrid"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-clip_text = true
-tooltip_text = "把当前图形改成阶跃（保持起始值到最后一刻）。"
-text = "阶跃"
-
 [node name="CurveMirrorButton" type="Button" parent="CurveToolGrid"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -169,14 +153,6 @@ size_flags_horizontal = 3
 clip_text = true
 tooltip_text = "水平镜像当前图形，得到反向缓动（缓出 ↔ 缓入）。"
 text = "镜像"
-
-[node name="CurveResetButton" type="Button" parent="CurveToolGrid"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-clip_text = true
-tooltip_text = "用当前「插值方式」重新取样，重置整条图形。"
-text = "重置曲线"
 
 [node name="CurveCopyButton" type="Button" parent="CurveToolGrid"]
 unique_name_in_owner = true

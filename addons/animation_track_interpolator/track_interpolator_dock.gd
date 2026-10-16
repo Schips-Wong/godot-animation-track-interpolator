@@ -40,10 +40,7 @@ var _curve_clipboard: Dictionary = {}
 @onready var _mode_points_button: Button = %ModePointsButton
 @onready var _mode_bezier_button: Button = %ModeBezierButton
 @onready var _mode_elastic_button: Button = %ModeElasticButton
-@onready var _curve_linear_button: Button = %CurveLinearButton
-@onready var _curve_step_button: Button = %CurveStepButton
 @onready var _curve_mirror_button: Button = %CurveMirrorButton
-@onready var _curve_reset_button: Button = %CurveResetButton
 @onready var _curve_copy_button: Button = %CurveCopyButton
 @onready var _curve_paste_button: Button = %CurvePasteButton
 @onready var _curve_ease_button: Button = %CurveEaseButton
@@ -644,10 +641,7 @@ func _setup_curve_tools() -> void:
 	for button: Button in [_mode_points_button, _mode_bezier_button, _mode_elastic_button]:
 		button.button_group = group
 		button.toggled.connect(_on_curve_mode_toggled)
-	_curve_linear_button.pressed.connect(_on_curve_make_linear)
-	_curve_step_button.pressed.connect(_on_curve_make_step)
 	_curve_mirror_button.pressed.connect(_on_curve_mirror)
-	_curve_reset_button.pressed.connect(_on_curve_reset)
 	_curve_copy_button.pressed.connect(_on_curve_copy)
 	_curve_paste_button.pressed.connect(_on_curve_paste)
 	_curve_ease_button.pressed.connect(_on_curve_cycle_ease)
@@ -698,36 +692,9 @@ func _set_curve_shape(shape: Dictionary) -> void:
 	_auto_apply_if_enabled()
 
 
-## 保留图形里的其他参数，只把控制点换成 points（工具条里的「线性 / 阶跃」用）。
-func _shape_with_points(points: PackedVector2Array) -> Dictionary:
-	var shape: Dictionary = _curve_canvas.get_shape()
-	shape["mode"] = Core.SHAPE_POINTS
-	shape["points"] = Core.normalize_points(points)
-	return shape
-
-
-func _on_curve_make_linear() -> void:
-	_set_curve_shape(_shape_with_points(Core.preset_points(Core.CURVE_LINEAR)))
-	_set_status("曲线已改为线性。", true)
-
-
-func _on_curve_make_step() -> void:
-	_set_curve_shape(_shape_with_points(Core.preset_points(Core.CURVE_STEP)))
-	_set_status("曲线已改为阶跃。", true)
-
-
 func _on_curve_mirror() -> void:
 	_set_curve_shape(Core.mirror_shape(_curve_canvas.get_shape()))
 	_set_status("曲线已水平镜像（反向缓动）。", true)
-
-
-func _on_curve_reset() -> void:
-	var id: int = _curve_option.get_selected_id()
-	if id < 0 or id == Core.CURVE_CUSTOM:
-		id = Core.CURVE_LINEAR
-	_apply_preset_to_canvas(id)
-	_update_info()
-	_set_status("曲线已按「%s」重置。" % Core.curve_labels()[id], true)
 
 
 func _on_curve_copy() -> void:
