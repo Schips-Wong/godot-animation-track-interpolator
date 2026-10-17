@@ -52,6 +52,33 @@ size_flags_horizontal = 3
 tooltip_text = "只有数值类轨道（值 / 位置 3D / 旋转 3D / 缩放 3D）可以被插值，其余轨道不可选"
 disabled = true
 
+[node name="TrackFilterLabelEmptyPlaceHolder" type="Label" parent="TargetGrid" unique_id=112623206]
+layout_mode = 2
+
+[node name="TrackFilter" type="HBoxContainer" parent="TargetGrid" unique_id=1762313562]
+layout_mode = 2
+
+[node name="PositionTrackCheck" type="CheckBox" parent="TargetGrid/TrackFilter" unique_id=498423714]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+tooltip_text = "取消勾选后，「轨道」下拉里的「位置 3D」轨道会置灰并跳过。"
+text = "位置"
+
+[node name="RotationTrackCheck" type="CheckBox" parent="TargetGrid/TrackFilter" unique_id=626428851]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+tooltip_text = "取消勾选后，「轨道」下拉里的「旋转 3D」轨道会置灰并跳过。"
+text = "旋转"
+
+[node name="ScaleTrackCheck" type="CheckBox" parent="TargetGrid/TrackFilter" unique_id=2000055077]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+tooltip_text = "取消勾选后，「轨道」下拉里的「缩放 3D」轨道会置灰并跳过。"
+text = "缩放"
+
 [node name="InfoLabel" type="Label" parent="." unique_id=1641103377]
 unique_name_in_owner = true
 layout_mode = 2

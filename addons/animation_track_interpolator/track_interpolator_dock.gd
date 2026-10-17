@@ -37,6 +37,9 @@ var _last_preset: int = Core.CURVE_LINEAR
 @onready var _refresh_button: Button = %RefreshButton
 @onready var _anim_option: OptionButton = %AnimOption
 @onready var _track_option: OptionButton = %TrackOption
+@onready var _position_track_check: CheckBox = %PositionTrackCheck
+@onready var _rotation_track_check: CheckBox = %RotationTrackCheck
+@onready var _scale_track_check: CheckBox = %ScaleTrackCheck
 @onready var _info_label: Label = %InfoLabel
 @onready var _curve_option: OptionButton = %CurveOption
 @onready var _curve_canvas: CurveCanvas = %CurveCanvas
@@ -117,6 +120,8 @@ func _ready() -> void:
 	_player_option.item_selected.connect(_on_player_selected)
 	_anim_option.item_selected.connect(_on_animation_selected)
 	_track_option.item_selected.connect(_on_track_selected)
+	for filter_check: CheckBox in [_position_track_check, _rotation_track_check, _scale_track_check]:
+		filter_check.toggled.connect(_on_track_filter_toggled)
 	_reload_button.pressed.connect(_on_reload_values_pressed)
 	_apply_button.pressed.connect(_on_apply_pressed)
 	_apply_all_button.pressed.connect(_on_apply_all_pressed)
@@ -328,25 +333,58 @@ func _refresh_tracks() -> void:
 	for i: int in range(_animation.get_track_count()):
 		var track_type: int = _animation.track_get_type(i)
 		_track_option.add_item("%d · %s · %s" % [i, Core.track_type_label(track_type), String(_animation.track_get_path(i))])
-		if Core.is_supported_track_type(track_type) and _animation.track_get_key_count(i) >= 2:
+		if _is_track_supported(i):
 			supported += 1
-		else:
-			_track_option.set_item_disabled(i, true)
+		# 类型被取消勾选的轨道也置灰，免得被选中。
+		_track_option.set_item_disabled(i, not _is_track_selectable(i))
 	_track_option.disabled = _animation.get_track_count() == 0
 	_apply_all_button.disabled = supported == 0
 
-	var wanted: int = -1
-	for i: int in range(_animation.get_track_count()):
-		if Core.is_supported_track_type(_animation.track_get_type(i)) and _animation.track_get_key_count(i) >= 2:
-			wanted = i
-			break
+	var wanted: int = _first_selectable_track()
 	if wanted == -1:
 		_clear_spins()
 		_update_info()
-		_set_status("该动画里没有可插值的数值轨道（需要 ≥2 个关键帧）。", false)
+		_set_status("该动画里没有可插值的数值轨道（需要 ≥2 个关键帧，且类型已勾选）。", false)
 		return
 	_track_option.select(wanted)
 	_select_track(wanted)
+
+
+## 轨道本身能否插值：类型受支持，且关键帧 ≥2。
+func _is_track_supported(index: int) -> bool:
+	if _animation == null or index < 0 or index >= _animation.get_track_count():
+		return false
+	return Core.is_supported_track_type(_animation.track_get_type(index)) \
+		and _animation.track_get_key_count(index) >= 2
+
+
+## 「位置 / 旋转 / 缩放」三个勾选框决定该类轨道是否参与；值轨道没有勾选框，始终参与。
+func _is_track_type_checked(track_type: int) -> bool:
+	match track_type:
+		Animation.TYPE_POSITION_3D:
+			return _position_track_check.button_pressed
+		Animation.TYPE_ROTATION_3D:
+			return _rotation_track_check.button_pressed
+		Animation.TYPE_SCALE_3D:
+			return _scale_track_check.button_pressed
+	return true
+
+
+## 该轨道能否在「轨道」下拉里被选中：可插值，且类型没有被跳过。
+func _is_track_selectable(index: int) -> bool:
+	if not _is_track_supported(index):
+		return false
+	return _is_track_type_checked(_animation.track_get_type(index))
+
+
+## 下拉里第一个可选轨道；没有则 -1。
+func _first_selectable_track() -> int:
+	if _animation == null:
+		return -1
+	for i: int in range(_animation.get_track_count()):
+		if _is_track_selectable(i):
+			return i
+	return -1
 
 
 func _clear_tracks() -> void:
@@ -559,6 +597,29 @@ func _on_animation_selected(index: int) -> void:
 
 func _on_track_selected(index: int) -> void:
 	_select_track(index)
+
+
+## 「位置 / 旋转 / 缩放」勾选框变化：刷新下拉项的可用状态；
+## 当前选中的轨道如果被跳过，自动跳到第一个可选轨道。
+func _on_track_filter_toggled(_pressed: bool) -> void:
+	if _animation == null:
+		return
+	for i: int in range(_animation.get_track_count()):
+		_track_option.set_item_disabled(i, not _is_track_selectable(i))
+	if _track_index >= 0 and _is_track_selectable(_track_index):
+		_update_info()
+		return
+	var wanted: int = _first_selectable_track()
+	if wanted == -1:
+		_track_index = -1
+		_apply_button.disabled = true
+		_clear_spins()
+		_update_info()
+		_set_status("当前勾选的类型里没有可插值的轨道（需要 ≥2 个关键帧）。", false)
+		return
+	_track_option.select(wanted)
+	_select_track(wanted)
+	_set_status("已跳过未勾选类型的轨道，自动切到轨道 %d。" % wanted, true)
 
 
 func _on_keep_ends_toggled(_pressed: bool) -> void:
