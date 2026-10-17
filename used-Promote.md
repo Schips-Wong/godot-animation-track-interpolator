@@ -58,3 +58,7 @@
 ### j
 
 只有`ModeElasticButton`按下后，`CurveEaseButton`才能操作；`CurveOption`和`ModePointsButton`也是一样的逻辑。
+
+### k
+
+添加`重置图表`，逻辑是：当前选中什么模式，就让那个模式回到一开始的样子。

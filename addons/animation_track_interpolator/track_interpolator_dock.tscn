@@ -141,6 +141,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "切换弹性缓动方向：缓出 → 缓入 → 缓入缓出（只有选中「弹性」时才可用）。"
+disabled = true
 text = "弹性·缓出"
 clip_text = true
 
@@ -173,7 +174,7 @@ autowrap_mode = 3
 
 [node name="CurveToolGrid" type="GridContainer" parent="." unique_id=1929291739]
 layout_mode = 2
-columns = 3
+columns = 4
 
 [node name="CurveMirrorButton" type="Button" parent="CurveToolGrid" unique_id=1070495324]
 unique_name_in_owner = true
@@ -181,6 +182,14 @@ layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "水平镜像当前图形，得到反向缓动（缓出 ↔ 缓入）。"
 text = "镜像"
+clip_text = true
+
+[node name="CurveGraphResetButton" type="Button" parent="CurveToolGrid" unique_id=140385407]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "重置当前图形模型：多控制点 → 重置为「插值方式」当前选中的预设；贝塞尔 / 弹性 → 恢复默认手柄。不切换模型，也不动其他模型调好的参数。"
+text = "重置图表"
 clip_text = true
 
 [node name="CurveCopyButton" type="Button" parent="CurveToolGrid" unique_id=584782130]
@@ -214,6 +223,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "把曲线视图的缩放与平移复位。"
+disabled = true
 text = "复位视图"
 clip_text = true
 

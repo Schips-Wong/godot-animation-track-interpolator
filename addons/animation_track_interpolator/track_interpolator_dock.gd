@@ -29,6 +29,9 @@ var _poll_accumulator: float = 0.0
 var _known_scene_id: int = 0
 ## 工具条「复制 / 粘贴」用的曲线剪贴板。
 var _curve_clipboard: Dictionary = {}
+## 「插值方式」里最后一次选中的预设（不含「自定义曲线」）。
+## 「多控制点」重置时用它回退，避免下拉停在「自定义曲线」时无从下手。
+var _last_preset: int = Core.CURVE_LINEAR
 
 @onready var _player_option: OptionButton = %PlayerOption
 @onready var _refresh_button: Button = %RefreshButton
@@ -47,6 +50,7 @@ var _curve_clipboard: Dictionary = {}
 @onready var _curve_auto_button: Button = %CurveAutoButton
 @onready var _curve_view_button: Button = %CurveViewButton
 @onready var _curve_drag_check: CheckBox = %CurveDragCheck
+@onready var _curve_graph_reset_button: Button = %CurveGraphResetButton
 @onready var _range_from_spin: SpinBox = %RangeFromSpin
 @onready var _range_to_spin: SpinBox = %RangeToSpin
 @onready var _reset_range_animation_button: Button = %ResetRangeToAnimationButton
@@ -600,6 +604,8 @@ func _on_curve_selected(index: int) -> void:
 	var id: int = _curve_option.get_item_id(index)
 	if id == Core.CURVE_CUSTOM:
 		return
+	# 记住最后一次预设，「重置图表」在下拉停在「自定义曲线」时用它回退。
+	_last_preset = id
 	_apply_preset_to_canvas(id)
 	_update_info()
 
@@ -620,6 +626,14 @@ func _select_custom_curve() -> void:
 	var custom_index: int = _custom_curve_index()
 	if custom_index >= 0 and _curve_option.selected != custom_index:
 		_curve_option.select(custom_index)
+
+
+## 在「插值方式」下拉里按预设 id 定位并选中（不会触发 item_selected）。
+func _select_preset_in_option(preset_id: int) -> void:
+	for i: int in range(_curve_option.item_count):
+		if _curve_option.get_item_id(i) == preset_id:
+			_curve_option.select(i)
+			return
 
 
 func _custom_curve_index() -> int:
@@ -654,6 +668,7 @@ func _setup_curve_tools() -> void:
 	_curve_auto_button.toggled.connect(_on_auto_apply_toggled)
 	_curve_view_button.pressed.connect(_on_curve_reset_view)
 	_curve_drag_check.toggled.connect(_on_curve_drag_toggled)
+	_curve_graph_reset_button.pressed.connect(_on_curve_reset_graph)
 	_curve_paste_button.disabled = true
 	_sync_curve_mode_buttons()
 	_sync_mode_dependents()
@@ -740,6 +755,44 @@ func _on_curve_cycle_ease() -> void:
 func _on_curve_reset_view() -> void:
 	_curve_canvas.reset_view()
 	_set_status("曲线视图已复位。", true)
+
+
+## 「重置图表」：把「当前」图形模型自己恢复成初始形状，模型本身不变，
+## 也不会动其他模型调好的参数。
+## - 多控制点 → 重置为「插值方式」当前选中的预设
+## - 贝塞尔   → 默认的两个手柄
+## - 弹性     → 默认的振幅 / 周期 / 缓动方向
+func _on_curve_reset_graph() -> void:
+	var mode: int = _curve_canvas.get_mode()
+	var shape: Dictionary = _curve_canvas.get_shape()
+	var defaults: Dictionary = Core.default_shape()
+	# 「多控制点」要重置成的预设；下拉停在「自定义曲线」时，回退到最后一次选中的预设。
+	var preset: int = _curve_option.get_selected_id()
+	if preset < 0 or preset == Core.CURVE_CUSTOM:
+		preset = _last_preset
+	match mode:
+		Core.SHAPE_BEZIER:
+			shape["h1"] = defaults["h1"]
+			shape["h2"] = defaults["h2"]
+		Core.SHAPE_ELASTIC:
+			shape["amplitude"] = defaults["amplitude"]
+			shape["period"] = defaults["period"]
+			shape["ease"] = defaults["ease"]
+		_:
+			shape["points"] = Core.preset_points(preset)
+			# 图形回到了这个预设，下拉也同步过去，免得显示成「自定义曲线」。
+			_select_preset_in_option(preset)
+	_curve_canvas.set_shape(shape)
+	_sync_curve_mode_buttons()
+	_sync_mode_dependents()
+	_update_info()
+	_auto_apply_if_enabled()
+	var labels: PackedStringArray = Core.shape_mode_labels()
+	var mode_label: String = labels[clampi(mode, 0, labels.size() - 1)]
+	if mode == Core.SHAPE_POINTS:
+		_set_status("「%s」图表已重置为「%s」。" % [mode_label, Core.curve_labels()[preset]], true)
+	else:
+		_set_status("「%s」图表已重置为初始形状。" % mode_label, true)
 
 
 func _on_curve_drag_toggled(pressed: bool) -> void:
