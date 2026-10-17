@@ -209,13 +209,20 @@ toggle_mode = true
 text = "自动应用"
 clip_text = true
 
-[node name="CurveViewButton" type="Button" parent="CurveToolGrid"]
+[node name="CurveViewButton" type="Button" parent="CurveToolGrid" unique_id=303893395]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-clip_text = true
 tooltip_text = "把曲线视图的缩放与平移复位。"
 text = "复位视图"
+clip_text = true
+
+[node name="CurveDragCheck" type="CheckBox" parent="CurveToolGrid" unique_id=1317411267]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "勾选后可以用空白处拖拽或中键平移曲线视图；未勾选时视图锁定，「复位视图」也不可用。"
+text = "允许拖动"
 
 [node name="RangeGrid" type="GridContainer" parent="." unique_id=1144142506]
 layout_mode = 2

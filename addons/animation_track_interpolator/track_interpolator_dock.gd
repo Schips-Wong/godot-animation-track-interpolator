@@ -46,6 +46,7 @@ var _curve_clipboard: Dictionary = {}
 @onready var _curve_ease_button: Button = %CurveEaseButton
 @onready var _curve_auto_button: Button = %CurveAutoButton
 @onready var _curve_view_button: Button = %CurveViewButton
+@onready var _curve_drag_check: CheckBox = %CurveDragCheck
 @onready var _range_from_spin: SpinBox = %RangeFromSpin
 @onready var _range_to_spin: SpinBox = %RangeToSpin
 @onready var _reset_range_animation_button: Button = %ResetRangeToAnimationButton
@@ -647,9 +648,11 @@ func _setup_curve_tools() -> void:
 	_curve_ease_button.pressed.connect(_on_curve_cycle_ease)
 	_curve_auto_button.toggled.connect(_on_auto_apply_toggled)
 	_curve_view_button.pressed.connect(_on_curve_reset_view)
+	_curve_drag_check.toggled.connect(_on_curve_drag_toggled)
 	_curve_paste_button.disabled = true
 	_sync_curve_mode_buttons()
 	_sync_ease_button()
+	_sync_drag_enabled()
 
 
 ## 把画布当前的图形模型同步到三个单选按钮上。
@@ -664,6 +667,13 @@ func _sync_ease_button() -> void:
 	var labels: PackedStringArray = Core.ease_labels()
 	var ease: int = clampi(int(_curve_canvas.get_shape().get("ease", Core.EASE_OUT)), 0, labels.size() - 1)
 	_curve_ease_button.text = "弹性·%s" % labels[ease]
+
+
+## 「允许拖动」选框：勾选才能平移视图；未勾选时「复位视图」一并置灰。
+func _sync_drag_enabled() -> void:
+	var enabled: bool = _curve_drag_check.button_pressed
+	_curve_canvas.set_pan_enabled(enabled)
+	_curve_view_button.disabled = not enabled
 
 
 func _on_curve_mode_toggled(pressed: bool) -> void:
@@ -721,6 +731,14 @@ func _on_curve_cycle_ease() -> void:
 func _on_curve_reset_view() -> void:
 	_curve_canvas.reset_view()
 	_set_status("曲线视图已复位。", true)
+
+
+func _on_curve_drag_toggled(pressed: bool) -> void:
+	_sync_drag_enabled()
+	if pressed:
+		_set_status("已允许拖动：可以平移曲线视图。", true)
+	else:
+		_set_status("已锁定视图：不能平移，「复位视图」不可用。", true)
 
 
 func _on_auto_apply_toggled(pressed: bool) -> void:

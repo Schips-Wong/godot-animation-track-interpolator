@@ -9,7 +9,7 @@ extends Control
 ## - 贝塞尔：h1 / h2 两个手柄（同 CSS cubic-bezier）；
 ## - 弹性：振幅 / 周期两个手柄，做带回弹的缓动。
 ##
-## 操作：左键拖动图形手柄；空白处按住左键或中键平移视图；滚轮以光标为中心缩放。
+## 操作：左键拖动图形手柄；空白处按住左键或中键平移视图（需开启「允许拖动」）；滚轮以光标为中心缩放。
 
 const Core: GDScript = preload("res://addons/animation_track_interpolator/track_interpolator_core.gd")
 
@@ -60,6 +60,8 @@ var _shape: Dictionary = Core.default_shape()
 var _drag_handle: String = ""
 var _hover_handle: String = ""
 var _panning: bool = false
+## 是否允许平移视图（由面板的「允许拖动」选框控制）。
+var _pan_enabled: bool = true
 var _zoom: float = 1.0
 var _pan: Vector2 = Vector2.ZERO
 
@@ -124,6 +126,20 @@ func reset_view() -> void:
 	_zoom = 1.0
 	_pan = Vector2.ZERO
 	queue_redraw()
+
+
+## 是否允许平移视图。关掉时会立刻中断正在进行的平移。
+func set_pan_enabled(enabled: bool) -> void:
+	if _pan_enabled == enabled:
+		return
+	_pan_enabled = enabled
+	if not enabled:
+		_panning = false
+	queue_redraw()
+
+
+func is_pan_enabled() -> bool:
+	return _pan_enabled
 
 
 # ---------------------------------------------------------------- 视图换算
@@ -328,7 +344,7 @@ func _handle_button(event: InputEventMouseButton) -> void:
 		accept_event()
 		return
 	if event.button_index == MOUSE_BUTTON_MIDDLE:
-		_panning = event.pressed
+		_panning = event.pressed and _pan_enabled
 		accept_event()
 		return
 	if event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
@@ -347,7 +363,7 @@ func _handle_button(event: InputEventMouseButton) -> void:
 		elif event.double_click and get_mode() == Core.SHAPE_POINTS:
 			_add_point(_to_data(local))
 		else:
-			_panning = true
+			_panning = _pan_enabled
 		accept_event()
 		return
 	if not _drag_handle.is_empty():
