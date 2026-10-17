@@ -99,7 +99,7 @@ clip_text = true
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "关键帧从起始值过渡到终点值所采用的曲线；选「自定义曲线」可手动拖拽控制点"
+tooltip_text = "关键帧从起始值过渡到终点值所采用的曲线；选「自定义曲线」可手动拖拽控制点（只有选中「多控制点」时才可用）"
 text_overrun_behavior = 3
 clip_text = true
 selected = 0
@@ -140,7 +140,7 @@ clip_text = true
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "切换弹性缓动方向：缓出 → 缓入 → 缓入缓出（只在「弹性」方式下生效）。"
+tooltip_text = "切换弹性缓动方向：缓出 → 缓入 → 缓入缓出（只有选中「弹性」时才可用）。"
 text = "弹性·缓出"
 clip_text = true
 

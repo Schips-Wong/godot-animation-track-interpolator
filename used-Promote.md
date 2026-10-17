@@ -54,3 +54,7 @@
 ### i
 
 我添加了`允许拖动`选框，让`复位视图`的是否禁用和这个选框保持关联，只有`允许拖动`勾选，才能拖拽视图。
+
+### j
+
+只有`ModeElasticButton`按下后，`CurveEaseButton`才能操作；`CurveOption`和`ModePointsButton`也是一样的逻辑。

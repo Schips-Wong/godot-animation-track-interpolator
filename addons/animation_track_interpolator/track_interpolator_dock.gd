@@ -611,7 +611,7 @@ func _on_curve_edit_started() -> void:
 
 
 func _on_curve_shape_changed(_shape: Dictionary) -> void:
-	_sync_ease_button()
+	_sync_mode_dependents()
 	_update_info()
 	_auto_apply_if_enabled()
 
@@ -632,6 +632,7 @@ func _custom_curve_index() -> int:
 func _apply_preset_to_canvas(preset_id: int) -> void:
 	_curve_canvas.set_preset_points(Core.preset_points(preset_id))
 	_sync_curve_mode_buttons()
+	_sync_mode_dependents()
 
 
 # ---------------------------------------------------------------- 图表操作方式 / 工具条
@@ -641,7 +642,11 @@ func _setup_curve_tools() -> void:
 	var group: ButtonGroup = ButtonGroup.new()
 	for button: Button in [_mode_points_button, _mode_bezier_button, _mode_elastic_button]:
 		button.button_group = group
-		button.toggled.connect(_on_curve_mode_toggled)
+	# 把模型常量绑定到各自的按钮上：同组按钮的按下状态在信号回调里可能还是旧的，
+	# 直接用绑定值更可靠。
+	_mode_points_button.toggled.connect(_on_curve_mode_toggled.bind(Core.SHAPE_POINTS))
+	_mode_bezier_button.toggled.connect(_on_curve_mode_toggled.bind(Core.SHAPE_BEZIER))
+	_mode_elastic_button.toggled.connect(_on_curve_mode_toggled.bind(Core.SHAPE_ELASTIC))
 	_curve_mirror_button.pressed.connect(_on_curve_mirror)
 	_curve_copy_button.pressed.connect(_on_curve_copy)
 	_curve_paste_button.pressed.connect(_on_curve_paste)
@@ -651,7 +656,7 @@ func _setup_curve_tools() -> void:
 	_curve_drag_check.toggled.connect(_on_curve_drag_toggled)
 	_curve_paste_button.disabled = true
 	_sync_curve_mode_buttons()
-	_sync_ease_button()
+	_sync_mode_dependents()
 	_sync_drag_enabled()
 
 
@@ -663,10 +668,19 @@ func _sync_curve_mode_buttons() -> void:
 	_mode_elastic_button.set_pressed_no_signal(mode == Core.SHAPE_ELASTIC)
 
 
+## 图形模型相关的联动：只有「多控制点」模型能用「插值方式」下拉，
+## 只有「弹性」模型能用「缓动方向」按钮。
+func _sync_mode_dependents() -> void:
+	_curve_option.disabled = _curve_canvas.get_mode() != Core.SHAPE_POINTS
+	_sync_ease_button()
+
+
+## 缓动方向按钮：文案跟随当前方向，且只在「弹性」模型下可操作。
 func _sync_ease_button() -> void:
 	var labels: PackedStringArray = Core.ease_labels()
 	var ease: int = clampi(int(_curve_canvas.get_shape().get("ease", Core.EASE_OUT)), 0, labels.size() - 1)
 	_curve_ease_button.text = "弹性·%s" % labels[ease]
+	_curve_ease_button.disabled = _curve_canvas.get_mode() != Core.SHAPE_ELASTIC
 
 
 ## 「允许拖动」选框：勾选才能平移视图；未勾选时「复位视图」一并置灰。
@@ -676,18 +690,13 @@ func _sync_drag_enabled() -> void:
 	_curve_view_button.disabled = not enabled
 
 
-func _on_curve_mode_toggled(pressed: bool) -> void:
+func _on_curve_mode_toggled(pressed: bool, mode: int) -> void:
 	if not pressed:
 		return
-	var mode: int = Core.SHAPE_POINTS
-	if _mode_bezier_button.button_pressed:
-		mode = Core.SHAPE_BEZIER
-	elif _mode_elastic_button.button_pressed:
-		mode = Core.SHAPE_ELASTIC
 	_curve_canvas.set_mode(mode)
 	# 换图形模型即意味着要按自定义曲线插值。
 	_select_custom_curve()
-	_sync_ease_button()
+	_sync_mode_dependents()
 	_update_info()
 	_auto_apply_if_enabled()
 
@@ -696,7 +705,7 @@ func _on_curve_mode_toggled(pressed: bool) -> void:
 func _set_curve_shape(shape: Dictionary) -> void:
 	_curve_canvas.set_shape(shape)
 	_sync_curve_mode_buttons()
-	_sync_ease_button()
+	_sync_mode_dependents()
 	_select_custom_curve()
 	_update_info()
 	_auto_apply_if_enabled()
