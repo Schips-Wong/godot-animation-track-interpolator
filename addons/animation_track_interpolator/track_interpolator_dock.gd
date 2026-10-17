@@ -44,6 +44,7 @@ var _last_preset: int = Core.CURVE_LINEAR
 @onready var _mode_bezier_button: Button = %ModeBezierButton
 @onready var _mode_elastic_button: Button = %ModeElasticButton
 @onready var _curve_mirror_button: Button = %CurveMirrorButton
+@onready var _mirror_mode_option: OptionButton = %MirrorModeOption
 @onready var _curve_copy_button: Button = %CurveCopyButton
 @onready var _curve_paste_button: Button = %CurvePasteButton
 @onready var _curve_ease_button: Button = %CurveEaseButton
@@ -661,6 +662,11 @@ func _setup_curve_tools() -> void:
 	_mode_points_button.toggled.connect(_on_curve_mode_toggled.bind(Core.SHAPE_POINTS))
 	_mode_bezier_button.toggled.connect(_on_curve_mode_toggled.bind(Core.SHAPE_BEZIER))
 	_mode_elastic_button.toggled.connect(_on_curve_mode_toggled.bind(Core.SHAPE_ELASTIC))
+	_mirror_mode_option.clear()
+	var mirror_labels: PackedStringArray = Core.mirror_mode_labels()
+	for i: int in range(mirror_labels.size()):
+		_mirror_mode_option.add_item(mirror_labels[i], i)
+	_mirror_mode_option.select(Core.MIRROR_CENTER)
 	_curve_mirror_button.pressed.connect(_on_curve_mirror)
 	_curve_copy_button.pressed.connect(_on_curve_copy)
 	_curve_paste_button.pressed.connect(_on_curve_paste)
@@ -726,9 +732,18 @@ func _set_curve_shape(shape: Dictionary) -> void:
 	_auto_apply_if_enabled()
 
 
+## 按「镜像方式」下拉里选中的方式镜像当前图形。
 func _on_curve_mirror() -> void:
-	_set_curve_shape(Core.mirror_shape(_curve_canvas.get_shape()))
-	_set_status("曲线已水平镜像（反向缓动）。", true)
+	var labels: PackedStringArray = Core.mirror_mode_labels()
+	var mirror: int = clampi(_mirror_mode_option.get_selected_id(), 0, labels.size() - 1)
+	if not Core.mirror_supported(_curve_canvas.get_mode(), mirror):
+		_set_status("「%s」只能用在「多控制点」图形上：请先点「多控制点」再镜像。" % labels[mirror], false)
+		return
+	_set_curve_shape(Core.mirror_shape(_curve_canvas.get_shape(), mirror))
+	if mirror == Core.MIRROR_CENTER:
+		_set_status("曲线已%s（反向缓动：缓出 ↔ 缓入）。" % labels[mirror], true)
+	else:
+		_set_status("曲线已%s：端点互换，过渡变成 1 → 0（终点值 → 起始值）。" % labels[mirror], true)
 
 
 func _on_curve_copy() -> void:

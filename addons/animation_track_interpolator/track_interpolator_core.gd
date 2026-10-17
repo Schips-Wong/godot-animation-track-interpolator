@@ -25,6 +25,11 @@ const SHAPE_POINTS: int = 0 ## 多控制点：任意个控制点，用 Hermite �
 const SHAPE_BEZIER: int = 1 ## 两点三次贝塞尔：用 h1 / h2 两个手柄（同 CSS cubic-bezier）
 const SHAPE_ELASTIC: int = 2 ## 弹性：用「振幅 / 周期」两个手柄做带回弹的缓动
 
+## 镜像方式（作用于 1x1 的图形方框）。
+const MIRROR_CENTER: int = 0 ## 绕中心点对称（旋转 180°）：M(t) = 1 - B(1-t)
+const MIRROR_HORIZONTAL: int = 1 ## 左右翻转：M(t) = B(1-t)
+const MIRROR_VERTICAL: int = 2 ## 上下翻转：M(t) = 1 - B(t)
+
 ## 弹性缓动的方向。
 const EASE_IN: int = 0
 const EASE_OUT: int = 1
@@ -246,6 +251,11 @@ static func shape_mode_labels() -> PackedStringArray:
 	return PackedStringArray(["多控制点", "贝塞尔", "弹性"])
 
 
+## 三种镜像方式的显示名（顺序与 MIRROR_* 一致）。
+static func mirror_mode_labels() -> PackedStringArray:
+	return PackedStringArray(["中心镜像", "水平镜像", "垂直镜像"])
+
+
 ## 弹性缓动方向的显示名（顺序与 EASE_* 一致）。
 static func ease_labels() -> PackedStringArray:
 	return PackedStringArray(["缓入", "缓出", "缓入缓出"])
@@ -291,30 +301,60 @@ static func weight_for(curve: int, t: float, shape: Dictionary = {}) -> float:
 	return curve_weight(curve, t)
 
 
-## 把一个点绕 1x1 的中心做点对称（x -> 1-x，y -> 1-y）。
-## 缓动曲线必须保持 0->0、1->1，所以「反向缓动」等价于 M(t) = 1 - B(1-t)，即点对称后再把时间轴倒过来。
-static func mirror_point(point: Vector2) -> Vector2:
-	return Vector2(1.0 - clampf(point.x, 0.0, 1.0), 1.0 - point.y)
+## 把一个点按指定的镜像方式变换（基准是 1x1 的方框）。
+## 中心镜像：1 - B(1-t)，仍是 0->0 / 1->1 的有效缓动（反向缓动）；
+## 水平镜像：B(1-t)，端点互换，变成 1->0；
+## 垂直镜像：1 - B(t)，端点互换，变成 1->0。
+static func mirror_point(point: Vector2, mirror: int = MIRROR_CENTER) -> Vector2:
+	var x: float = clampf(point.x, 0.0, 1.0)
+	match mirror:
+		MIRROR_HORIZONTAL:
+			return Vector2(1.0 - x, point.y)
+		MIRROR_VERTICAL:
+			return Vector2(x, 1.0 - point.y)
+	return Vector2(1.0 - x, 1.0 - point.y)
 
 
-## 把图形镜像成反向缓动：缓出 ↔ 缓入，预动作 ↔ 回弹。
-static func mirror_shape(shape: Dictionary) -> Dictionary:
+## 该图形模型能否用自身参数精确表达这种镜像。
+## 中心镜像对所有模型都成立（M(t) = 1 - B(1-t)，端点仍是 0->0 / 1->1）。
+## 水平 / 垂直镜像会交换端点（得到 1->0 的递减曲线），只有「多控制点」能表达；
+## 贝塞尔端点锁死在 (0,0)/(1,1)、弹性只有三种回弹形态，都做不到。
+static func mirror_supported(mode: int, mirror: int) -> bool:
+	return mirror == MIRROR_CENTER or mode == SHAPE_POINTS
+
+
+## 把一组控制点按镜像方式变换，并整理成可采样形式（x 升序、首点 x=0、末点 x=1）。
+static func mirror_points(points: PackedVector2Array, mirror: int) -> PackedVector2Array:
+	var out: PackedVector2Array = PackedVector2Array()
+	if mirror == MIRROR_VERTICAL:
+		for point: Vector2 in points:
+			out.append(mirror_point(point, mirror))
+		return normalize_points(out)
+	# 中心 / 水平镜像都会把 x 反过来，倒序遍历以保持 x 升序。
+	for i: int in range(points.size() - 1, -1, -1):
+		out.append(mirror_point(points[i], mirror))
+	return normalize_points(out)
+
+
+## 把图形按指定方式镜像。
+## 调用前请先查 mirror_supported()：不支持的组合会原样返回（避免产出畸形曲线）。
+static func mirror_shape(shape: Dictionary, mirror: int = MIRROR_CENTER) -> Dictionary:
 	var out: Dictionary = shape.duplicate(true)
-	match int(out.get("mode", SHAPE_POINTS)):
+	var mode: int = int(out.get("mode", SHAPE_POINTS))
+	if not mirror_supported(mode, mirror):
+		return out
+	match mode:
 		SHAPE_BEZIER:
 			var h1: Vector2 = out.get("h1", Vector2(0.25, 0.0))
 			var h2: Vector2 = out.get("h2", Vector2(0.75, 1.0))
-			out["h1"] = mirror_point(h2)
-			out["h2"] = mirror_point(h1)
+			out["h1"] = mirror_point(h2, mirror)
+			out["h2"] = mirror_point(h1, mirror)
 		SHAPE_ELASTIC:
 			var ease: int = int(out.get("ease", EASE_OUT))
 			out["ease"] = EASE_IN if ease == EASE_OUT else (EASE_OUT if ease == EASE_IN else EASE_IN_OUT)
 		_:
-			var mirrored: PackedVector2Array = PackedVector2Array()
 			var points: PackedVector2Array = out.get("points", PackedVector2Array())
-			for i: int in range(points.size() - 1, -1, -1):
-				mirrored.append(mirror_point(points[i]))
-			out["points"] = mirrored
+			out["points"] = mirror_points(points, mirror)
 	return out
 
 

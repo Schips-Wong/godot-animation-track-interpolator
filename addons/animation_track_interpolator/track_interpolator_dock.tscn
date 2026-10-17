@@ -180,9 +180,26 @@ columns = 4
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "水平镜像当前图形，得到反向缓动（缓出 ↔ 缓入）。"
+tooltip_text = "按旁边的「镜像方式」处理当前图形。中心镜像 = 绕中心点对称（反向缓动），所有模型都支持；水平 / 垂直镜像 = 左右 / 上下翻转，只支持「多控制点」。"
 text = "镜像"
 clip_text = true
+
+[node name="MirrorModeOption" type="OptionButton" parent="CurveToolGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+fit_to_longest_item = false
+clip_text = true
+text_overrun_behavior = 3
+tooltip_text = "镜像方式。中心镜像：绕中心点对称，得到反向缓动，所有模型都支持；水平 / 垂直镜像：左右 / 上下翻转，端点互换（过渡变成 1 → 0），只支持「多控制点」。"
+selected = 0
+item_count = 3
+popup/item_0/text = "中心镜像"
+popup/item_0/id = 0
+popup/item_1/text = "水平镜像"
+popup/item_1/id = 1
+popup/item_2/text = "垂直镜像"
+popup/item_2/id = 2
 
 [node name="CurveGraphResetButton" type="Button" parent="CurveToolGrid" unique_id=140385407]
 unique_name_in_owner = true
