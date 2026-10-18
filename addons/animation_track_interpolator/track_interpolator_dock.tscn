@@ -1,7 +1,10 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://d00qywwuxp5jm"]
 
-[ext_resource type="Script" path="res://addons/animation_track_interpolator/track_interpolator_dock.gd" id="1_dock"]
-[ext_resource type="Script" path="res://addons/animation_track_interpolator/curve_editor.gd" id="2_curve"]
+[ext_resource type="Script" uid="uid://ota6318pww67" path="res://addons/animation_track_interpolator/track_interpolator_dock.gd" id="1_dock"]
+[ext_resource type="Script" uid="uid://c7hg2ib0r28j" path="res://addons/animation_track_interpolator/curve_editor.gd" id="2_curve"]
+[ext_resource type="Script" uid="uid://d4d7lmd2e56x6" path="res://addons/animation_track_interpolator/track_value_graph.gd" id="3_value"]
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_0lixu"]
 
 [node name="AnimationTrackInterpolator" type="VBoxContainer" unique_id=1116020554]
 script = ExtResource("1_dock")
@@ -61,22 +64,22 @@ layout_mode = 2
 [node name="PositionTrackCheck" type="CheckBox" parent="TargetGrid/TrackFilter" unique_id=498423714]
 unique_name_in_owner = true
 layout_mode = 2
-button_pressed = true
 tooltip_text = "取消勾选后，「轨道」下拉里的「位置 3D」轨道会置灰并跳过。"
+button_pressed = true
 text = "位置"
 
 [node name="RotationTrackCheck" type="CheckBox" parent="TargetGrid/TrackFilter" unique_id=626428851]
 unique_name_in_owner = true
 layout_mode = 2
-button_pressed = true
 tooltip_text = "取消勾选后，「轨道」下拉里的「旋转 3D」轨道会置灰并跳过。"
+button_pressed = true
 text = "旋转"
 
 [node name="ScaleTrackCheck" type="CheckBox" parent="TargetGrid/TrackFilter" unique_id=2000055077]
 unique_name_in_owner = true
 layout_mode = 2
-button_pressed = true
 tooltip_text = "取消勾选后，「轨道」下拉里的「缩放 3D」轨道会置灰并跳过。"
+button_pressed = true
 text = "缩放"
 
 [node name="ValueGraphHeader" type="HBoxContainer" parent="." unique_id=1384620107]
@@ -93,13 +96,19 @@ unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "把图表视图适配到该轨道的全部关键帧（也可以双击图表）。"
 text = "适配视图"
-clip_text = true
+
+[node name="ValueGraphEditCheck" type="CheckBox" parent="ValueGraphHeader" unique_id=1210550934]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "勾选后可以直接拖动图表里的关键帧点修改数值（竖直拖动，时间不变）；拖动空白处仍然是平移视图。修改可用 Ctrl+Z 撤销。"
+text = "编辑"
 
 [node name="ValueCanvas" type="Control" parent="." unique_id=1885603154]
 unique_name_in_owner = true
+clip_contents = true
 custom_minimum_size = Vector2(0, 150)
 layout_mode = 2
-tooltip_text = "当前选中轨道的数值曲线。滚轮缩放（Ctrl 只缩放时间 / Shift 只缩放数值），左键或中键拖拽平移，双击适配视图。"
+tooltip_text = "当前选中轨道的数值曲线。滚轮缩放（Ctrl 只缩放时间 / Shift 只缩放数值），左键或中键拖拽平移，双击适配视图；勾选「编辑」后可直接拖动关键帧点修改数值。"
 script = ExtResource("3_value")
 
 [node name="InfoLabel" type="Label" parent="." unique_id=1641103377]
@@ -142,7 +151,7 @@ size_flags_horizontal = 3
 tooltip_text = "多控制点：任意个控制点用平滑曲线连接；双击空白加点，右键点删点。"
 toggle_mode = true
 button_pressed = true
-button_group = SubResource("ButtonGroup_g61h1")
+button_group = SubResource("ButtonGroup_0lixu")
 text = "多控制点"
 clip_text = true
 
@@ -183,7 +192,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "弹性：拖「振幅 / 周期」两个手柄做带回弹的缓动曲线。"
 toggle_mode = true
-button_group = SubResource("ButtonGroup_g61h1")
+button_group = SubResource("ButtonGroup_0lixu")
 text = "弹性"
 clip_text = true
 
@@ -206,7 +215,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "两点三次贝塞尔（同 CSS cubic-bezier）：拖 h1 / h2 两个手柄控制缓动形状。"
 toggle_mode = true
-button_group = SubResource("ButtonGroup_g61h1")
+button_group = SubResource("ButtonGroup_0lixu")
 text = "贝塞尔"
 clip_text = true
 
@@ -235,15 +244,15 @@ tooltip_text = "按旁边的「镜像方式」处理当前图形。中心镜像 
 text = "镜像"
 clip_text = true
 
-[node name="MirrorModeOption" type="OptionButton" parent="CurveToolGrid"]
+[node name="MirrorModeOption" type="OptionButton" parent="CurveToolGrid" unique_id=2095650447]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-fit_to_longest_item = false
-clip_text = true
-text_overrun_behavior = 3
 tooltip_text = "镜像方式。中心镜像：绕中心点对称，得到反向缓动，所有模型都支持；水平 / 垂直镜像：左右 / 上下翻转，端点互换（过渡变成 1 → 0），只支持「多控制点」。"
+text_overrun_behavior = 3
+clip_text = true
 selected = 0
+fit_to_longest_item = false
 item_count = 3
 popup/item_0/text = "中心镜像"
 popup/item_0/id = 0
@@ -550,6 +559,7 @@ text = "从首尾关键帧重新读取"
 
 [node name="KeepOnlyEndsCheck" type="CheckButton" parent="." unique_id=1613515174]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 tooltip_text = "勾选后删除中间关键帧，只保留首尾两帧，由 Godot 自身在这两个值之间过渡"
 text = "只保留首尾两个关键帧"

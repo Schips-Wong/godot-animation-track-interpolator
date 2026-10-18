@@ -8,8 +8,12 @@ extends Control
 ##
 ## 操作：滚轮缩放；Ctrl+滚轮只缩放时间，Shift+滚轮只缩放数值；
 ## 左键 / 中键拖拽平移；双击或「适配视图」按钮复位到全部关键帧。
+## 打开编辑模式后，拖动关键帧点即可修改该点的数值（由面板负责撤销/重做）。
 
 const Core: GDScript = preload("res://addons/animation_track_interpolator/track_interpolator_core.gd")
+
+## 拖动关键帧点结束：把「修改前 / 修改后」的整条关键帧交给面板，走统一的撤销/重做。
+signal keys_edited(track_index: int, key_index: int, before_keys: Array, after_keys: Array)
 
 ## 内边距：左侧留给数值标签，底部留给时间标签（实际底部还会按字体度量补足）。
 const PAD_LEFT: float = 44.0
@@ -19,6 +23,8 @@ const PAD_BOTTOM: float = 26.0
 
 const SAMPLES_PER_SEGMENT: int = 24
 const KEY_RADIUS: float = 3.5
+## 编辑模式下拾取关键帧点的半径（像素）。
+const KEY_HIT_RADIUS: float = 9.0
 const ZOOM_STEP: float = 1.2
 const MIN_SPAN: float = 0.000001
 
@@ -32,6 +38,7 @@ const COLOR_RANGE: Color = Color(0.35, 0.62, 1.0, 0.1)
 const COLOR_RANGE_EDGE: Color = Color(0.45, 0.72, 1.0, 0.5)
 const COLOR_HOVER: Color = Color(1.0, 1.0, 1.0, 0.35)
 const COLOR_PANEL_BG: Color = Color(0.06, 0.06, 0.08, 0.92)
+const COLOR_KEY_ACTIVE: Color = Color(1.0, 0.85, 0.4)
 
 const CHANNEL_COLORS: Array[Color] = [
 	Color(1.0, 0.42, 0.42),
@@ -66,6 +73,22 @@ var _hover_time: float = NAN
 ## 缓存的底部留白（只有字体变化时需要重算）。
 var _bottom_pad_cache: float = PAD_BOTTOM
 
+## 编辑模式与关键帧拖动状态。
+var _edit_enabled: bool = false
+var _hover_channel: int = -1
+var _hover_index: int = -1
+var _dragging_key: bool = false
+var _drag_channel: int = -1
+var _drag_index: int = -1
+var _drag_start_value: float = 0.0
+var _drag_value: float = 0.0
+var _drag_start_y: float = 0.0
+var _drag_start_local: Vector2 = Vector2.ZERO
+var _drag_changed: bool = false
+var _drag_start_channels: PackedFloat64Array = PackedFloat64Array()
+var _drag_template: Variant = null
+var _drag_initial_keys: Array = []
+
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -95,6 +118,8 @@ func _notification(what: int) -> void:
 func set_track(animation: Animation, track_index: int) -> void:
 	var same_source: bool = animation == _animation and track_index == _track_index
 	if not same_source:
+		if _dragging_key:
+			_cancel_key_drag()
 		_disconnect_source()
 		_animation = animation
 		_track_index = track_index
@@ -129,6 +154,23 @@ func has_data() -> bool:
 	return not _times.is_empty() and not _channel_values.is_empty()
 
 
+## 是否允许直接拖动关键帧点修改数值。
+func set_edit_enabled(enabled: bool) -> void:
+	if _edit_enabled == enabled:
+		return
+	if not enabled:
+		_cancel_key_drag()
+	_edit_enabled = enabled
+	_hover_channel = -1
+	_hover_index = -1
+	_update_cursor()
+	queue_redraw()
+
+
+func is_edit_enabled() -> bool:
+	return _edit_enabled
+
+
 # ---------------------------------------------------------------- 数据源
 
 func _connect_source() -> void:
@@ -156,6 +198,13 @@ func _on_source_changed() -> void:
 		_track_index = -1
 		_rebuild(true)
 		return
+	# 拖动过程中若外部改了关键帧，索引可能已经对不上，直接放弃这次拖动。
+	if _dragging_key:
+		_dragging_key = false
+		_clear_drag_data()
+		_hover_channel = -1
+		_hover_index = -1
+		_update_cursor()
 	_rebuild(not _user_view)
 
 
@@ -367,6 +416,8 @@ func _draw() -> void:
 	_draw_grid(plot)
 	_draw_curves()
 	_draw_keys(plot)
+	if _dragging_key:
+		_draw_drag_guide(plot)
 	_draw_legend(plot)
 	if not is_nan(_hover_time):
 		_draw_hover(plot)
@@ -490,7 +541,21 @@ func _draw_keys(plot: Rect2) -> void:
 			var color: Color = CHANNEL_COLORS[channel]
 			if not in_range:
 				color.a = 0.3
-			draw_circle(point, KEY_RADIUS, color)
+			var highlighted: bool = _edit_enabled and (
+				(i == _hover_index and channel == _hover_channel)
+				or (_dragging_key and i == _drag_index and channel == _drag_channel)
+			)
+			draw_circle(point, KEY_RADIUS + (1.5 if highlighted else 0.0), color)
+			if highlighted:
+				draw_arc(point, KEY_RADIUS + 4.0, 0.0, TAU, 24, COLOR_KEY_ACTIVE, 1.5, true)
+
+
+## 拖动关键帧时画一条水平参考线，方便对齐数值。
+func _draw_drag_guide(plot: Rect2) -> void:
+	var y: float = _to_local(Vector2(0.0, _drag_value)).y
+	if y < plot.position.y or y > plot.end.y:
+		return
+	draw_dashed_line(Vector2(plot.position.x, y), Vector2(plot.end.x, y), COLOR_KEY_ACTIVE, 1.0, 4.0)
 
 
 ## 右上角的通道图例（X / Y / Z / W 或「值」）。
@@ -610,6 +675,10 @@ static func _format_number(value: float, step: float) -> String:
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event
+		if _dragging_key:
+			_drag_key_to(motion.position)
+			accept_event()
+			return
 		if _panning:
 			_pan_by(motion.relative)
 			_user_view = true
@@ -624,7 +693,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	var plot: Rect2 = _plot_rect()
 	match event.button_index:
 		MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN:
-			if not event.pressed or not plot.has_point(event.position):
+			if _dragging_key or not event.pressed or not plot.has_point(event.position):
 				return
 			var factor: float = ZOOM_STEP if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / ZOOM_STEP
 			var zoom_time: bool = not event.shift_pressed
@@ -639,22 +708,178 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 				if event.button_index == MOUSE_BUTTON_LEFT and event.double_click:
 					_panning = false
 					fit_view()
+				elif event.button_index == MOUSE_BUTTON_LEFT and _edit_enabled:
+					var pick: Dictionary = _pick_key(event.position)
+					if not pick.is_empty():
+						_begin_key_drag(int(pick["channel"]), int(pick["index"]), event.position)
+					elif plot.has_point(event.position):
+						_panning = true
 				elif plot.has_point(event.position):
 					_panning = true
 			else:
+				if _dragging_key:
+					_finish_key_drag()
 				_panning = false
 			accept_event()
 
 
 func _update_hover(local: Vector2) -> void:
 	var plot: Rect2 = _plot_rect()
-	var time: float = NAN
-	if plot.has_point(local):
-		time = _to_data(local).x
-	if is_nan(time) == is_nan(_hover_time) and (is_nan(time) or is_equal_approx(time, _hover_time)):
-		return
+	var inside: bool = plot.has_point(local)
+	var time: float = _to_data(local).x if inside else NAN
+	var previous_time: float = _hover_time
+	var previous_channel: int = _hover_channel
+	var previous_index: int = _hover_index
 	_hover_time = time
+	if _edit_enabled and inside:
+		var pick: Dictionary = _pick_key(local)
+		_hover_channel = int(pick.get("channel", -1))
+		_hover_index = int(pick.get("index", -1))
+	else:
+		_hover_channel = -1
+		_hover_index = -1
+	_update_cursor()
+	var same_time: bool = (
+		is_nan(previous_time) == is_nan(_hover_time)
+		and (is_nan(_hover_time) or is_equal_approx(previous_time, _hover_time))
+	)
+	if same_time and previous_channel == _hover_channel and previous_index == _hover_index:
+		return
 	queue_redraw()
+
+
+## 找出光标附近的关键帧点；返回 {"channel": int, "index": int}，没有则空字典。
+func _pick_key(local: Vector2) -> Dictionary:
+	if not _edit_enabled or _channel_values.is_empty():
+		return {}
+	var plot: Rect2 = _plot_rect()
+	if not plot.has_point(local):
+		return {}
+	var best: Dictionary = {}
+	var best_distance: float = KEY_HIT_RADIUS
+	for i: int in range(_times.size()):
+		for channel: int in range(_channel_values.size()):
+			var point: Vector2 = _to_local(Vector2(_times[i], _channel_values[channel][i]))
+			var distance: float = point.distance_to(local)
+			if distance <= best_distance:
+				best_distance = distance
+				best = {"channel": channel, "index": i}
+	return best
+
+
+func _update_cursor() -> void:
+	if _dragging_key:
+		mouse_default_cursor_shape = Control.CURSOR_DRAG
+	elif _edit_enabled and _hover_index >= 0:
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	else:
+		mouse_default_cursor_shape = Control.CURSOR_ARROW
+
+
+# ---------------------------------------------------------------- 关键帧拖动
+
+func _begin_key_drag(channel: int, index: int, local: Vector2) -> void:
+	if _animation == null or not is_instance_valid(_animation):
+		return
+	if index < 0 or index >= _times.size() or channel < 0 or channel >= _channel_values.size():
+		return
+	var template: Variant = _animation.track_get_key_value(_track_index, index)
+	var channels: PackedFloat64Array = Core.value_to_edit_channels(template)
+	if channel >= channels.size():
+		return
+	_dragging_key = true
+	_drag_changed = false
+	_drag_channel = channel
+	_drag_index = index
+	_drag_start_value = _channel_values[channel][index]
+	_drag_value = _drag_start_value
+	_drag_start_y = _to_data(local).y
+	_drag_start_local = local
+	_drag_template = template
+	_drag_start_channels = channels
+	_drag_initial_keys = Core.capture_keys(_animation, _track_index)
+	_hover_time = _times[index]
+	_hover_channel = channel
+	_hover_index = index
+	_update_cursor()
+	queue_redraw()
+
+
+## 只按竖直方向拖动改数值；时间保持不变。
+func _drag_key_to(local: Vector2) -> void:
+	var data_y: float = _to_data(local).y
+	var new_value: float = _drag_start_value + (data_y - _drag_start_y)
+	var column: PackedFloat64Array = _channel_values[_drag_channel]
+	column[_drag_index] = new_value
+	_channel_values[_drag_channel] = column
+	_drag_value = new_value
+	if absf(local.y - _drag_start_local.y) > 0.5:
+		if not _drag_changed:
+			# 真的改动过数值后就不再自动适配视图，避免提交时视图跳动。
+			_user_view = true
+		_drag_changed = true
+	_hover_time = _times[_drag_index]
+	queue_redraw()
+
+
+func _finish_key_drag() -> void:
+	if not _dragging_key:
+		return
+	var channel: int = _drag_channel
+	var index: int = _drag_index
+	var value: float = _drag_value
+	var changed: bool = _drag_changed and absf(value - _drag_start_value) > MIN_SPAN
+	var channels: PackedFloat64Array = _drag_start_channels.duplicate()
+	var template: Variant = _drag_template
+	var before_keys: Array = _drag_initial_keys
+	var track: int = _track_index
+	_dragging_key = false
+	_update_cursor()
+	_clear_drag_data()
+
+	if not changed or template == null or channels.is_empty() or channel < 0 or channel >= channels.size():
+		_rebuild(false)
+		return
+	if _animation == null or not is_instance_valid(_animation) or track < 0 or track >= _animation.get_track_count():
+		_rebuild(false)
+		return
+	if index < 0 or index >= before_keys.size() or index >= _animation.track_get_key_count(track):
+		_rebuild(false)
+		return
+	# 期间若关键帧被外部改动（索引/时间对不上），放弃这次编辑。
+	if not is_equal_approx(_animation.track_get_key_time(track, index), _times[index]):
+		_rebuild(false)
+		return
+	channels[channel] = value
+	var new_value: Variant = Core.edit_channels_to_value(template, channels)
+	if new_value == null:
+		_rebuild(false)
+		return
+	var after_keys: Array = before_keys.duplicate(true)
+	var entry: Dictionary = after_keys[index]
+	entry["value"] = new_value
+	after_keys[index] = entry
+	keys_edited.emit(track, index, before_keys, after_keys)
+	_rebuild(false)
+
+
+## 取消拖动（关闭编辑模式 / 数据源变化时）：丢弃预览值。
+func _cancel_key_drag() -> void:
+	if not _dragging_key:
+		return
+	_dragging_key = false
+	_update_cursor()
+	_clear_drag_data()
+	_rebuild(false)
+
+
+func _clear_drag_data() -> void:
+	_drag_changed = false
+	_drag_channel = -1
+	_drag_index = -1
+	_drag_start_channels = PackedFloat64Array()
+	_drag_initial_keys = []
+	_drag_template = null
 
 
 func _pan_by(relative: Vector2) -> void:

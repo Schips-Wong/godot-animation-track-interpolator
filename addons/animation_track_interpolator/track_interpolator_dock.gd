@@ -46,6 +46,7 @@ var _last_preset: int = Core.CURVE_LINEAR
 @onready var _curve_canvas: CurveCanvas = %CurveCanvas
 @onready var _value_canvas: ValueGraph = %ValueCanvas
 @onready var _value_fit_button: Button = %ValueGraphFitButton
+@onready var _value_edit_check: CheckBox = %ValueGraphEditCheck
 @onready var _mode_points_button: Button = %ModePointsButton
 @onready var _mode_bezier_button: Button = %ModeBezierButton
 @onready var _mode_elastic_button: Button = %ModeElasticButton
@@ -119,6 +120,8 @@ func _ready() -> void:
 	_curve_canvas.shape_changed.connect(_on_curve_shape_changed)
 	_curve_canvas.set_preset_points(Core.preset_points(Core.CURVE_LINEAR))
 	_value_fit_button.pressed.connect(_on_value_graph_fit_pressed)
+	_value_edit_check.toggled.connect(_on_value_graph_edit_toggled)
+	_value_canvas.keys_edited.connect(_on_value_graph_keys_edited)
 
 	_refresh_button.pressed.connect(_on_refresh_pressed)
 	_player_option.item_selected.connect(_on_player_selected)
@@ -859,6 +862,33 @@ func _on_curve_reset_view() -> void:
 func _on_value_graph_fit_pressed() -> void:
 	_value_canvas.fit_view()
 	_set_status("数值图表已适配到该轨道的全部关键帧。", true)
+
+
+func _on_value_graph_edit_toggled(pressed: bool) -> void:
+	_value_canvas.set_edit_enabled(pressed)
+	if pressed:
+		_set_status("数值图表：拖动关键帧点即可修改数值，可用 Ctrl+Z 撤销。", true)
+	else:
+		_set_status("数值图表：已退出编辑模式，只能查看曲线。", true)
+
+
+## 图表里拖完一个关键帧点：走统一的撤销记录，整条轨道重建。
+func _on_value_graph_keys_edited(track_index: int, key_index: int, before_keys: Array, after_keys: Array) -> void:
+	if _animation == null or track_index < 0 or track_index != _track_index:
+		return
+	var undo_redo: EditorUndoRedoManager = EditorInterface.get_editor_undo_redo()
+	undo_redo.create_action("轨道数值图表：修改关键帧", UndoRedo.MERGE_DISABLE, EditorInterface.get_edited_scene_root())
+	undo_redo.add_do_reference(_animation)
+	undo_redo.add_do_method(self, &"_rebuild_track", _animation, track_index, after_keys)
+	undo_redo.add_undo_method(self, &"_rebuild_track", _animation, track_index, before_keys)
+	undo_redo.commit_action()
+	EditorInterface.mark_scene_as_unsaved()
+	# 首/尾关键帧就是起始值/终点值的来源，改完顺便刷新，避免用旧值再应用一次。
+	if key_index == 0 or key_index == after_keys.size() - 1:
+		_reload_values_from_keys()
+	_sync_value_graph()
+	_update_info()
+	_set_status("已修改关键帧，可用 Ctrl+Z 撤销。", true)
 
 
 ## 「重置图表」：把「当前」图形模型自己恢复成初始形状，模型本身不变，
