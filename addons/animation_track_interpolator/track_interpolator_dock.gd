@@ -252,7 +252,7 @@ func _refresh_players() -> void:
 		wanted = 0
 	if wanted == -1:
 		_clear_tracks()
-		_info_label.text = "当前编辑场景里没有 AnimationPlayer。"
+		#_info_label.text = "当前编辑场景里没有 AnimationPlayer。"
 		_set_status("没有可用的 AnimationPlayer。", false)
 		return
 	_player_option.select(wanted)
@@ -297,7 +297,7 @@ func _refresh_animations(preferred_animation: String) -> void:
 	_anim_option.disabled = _animation_names.is_empty()
 	if _animation_names.is_empty():
 		_clear_tracks()
-		_info_label.text = "该 AnimationPlayer 没有任何动画。"
+		#_info_label.text = "该 AnimationPlayer 没有任何动画。"
 		_set_status("没有可用的动画。", false)
 		return
 	var wanted: int = _animation_names.find(preferred_animation)
@@ -321,7 +321,8 @@ func _resolve_animation(full_name: String) -> Animation:
 	return _player.get_animation(StringName(full_name))
 
 
-func _refresh_tracks() -> void:
+## preferred_track 仍然可选就保持选中，否则退到第一个可选轨道。
+func _refresh_tracks(preferred_track: int = -1) -> void:
 	_track_option.clear()
 	_track_index = -1
 	_apply_button.disabled = true
@@ -332,22 +333,36 @@ func _refresh_tracks() -> void:
 	var supported: int = 0
 	for i: int in range(_animation.get_track_count()):
 		var track_type: int = _animation.track_get_type(i)
-		_track_option.add_item("%d · %s · %s" % [i, Core.track_type_label(track_type), String(_animation.track_get_path(i))])
 		if _is_track_supported(i):
 			supported += 1
-		# 类型被取消勾选的轨道也置灰，免得被选中。
-		_track_option.set_item_disabled(i, not _is_track_selectable(i))
-	_track_option.disabled = _animation.get_track_count() == 0
+		# 类型被取消勾选的轨道直接不列出来（列表项的 id 存的就是轨道索引）。
+		if not _is_track_type_checked(track_type):
+			continue
+		_track_option.add_item(
+			"%d · %s · %s" % [i, Core.track_type_label(track_type), String(_animation.track_get_path(i))],
+			i
+		)
+		if not _is_track_supported(i):
+			_track_option.set_item_disabled(_track_option.item_count - 1, true)
+	_track_option.disabled = _track_option.item_count == 0
 	_apply_all_button.disabled = supported == 0
 
-	var wanted: int = _first_selectable_track()
+	var wanted: int = preferred_track if _is_track_selectable(preferred_track) else _first_selectable_track()
 	if wanted == -1:
 		_clear_spins()
 		_update_info()
 		_set_status("该动画里没有可插值的数值轨道（需要 ≥2 个关键帧，且类型已勾选）。", false)
 		return
-	_track_option.select(wanted)
+	_select_option_track(wanted)
 	_select_track(wanted)
+
+
+## 在下拉里按「轨道索引」选中（列表项 id 存的就是轨道索引）。
+func _select_option_track(track_index: int) -> void:
+	for i: int in range(_track_option.item_count):
+		if _track_option.get_item_id(i) == track_index:
+			_track_option.select(i)
+			return
 
 
 ## 轨道本身能否插值：类型受支持，且关键帧 ≥2。
@@ -505,39 +520,39 @@ func _collect_spin_value(spins: Array[SpinBox], template: Variant, mask: PackedB
 
 func _update_info() -> void:
 	if _player == null:
-		_info_label.text = "未找到 AnimationPlayer。"
+		#_info_label.text = "未找到 AnimationPlayer。"
 		return
 	if _animation == null:
-		_info_label.text = "请选择动画。"
+		#_info_label.text = "请选择动画。"
 		return
 	var lines: PackedStringArray = PackedStringArray()
 	var root: Node = EditorInterface.get_edited_scene_root()
-	if root != null:
-		lines.append("AnimationPlayer：%s" % String(root.get_path_to(_player)))
-	else:
-		lines.append("AnimationPlayer：%s" % String(_player.name))
-	lines.append("动画：%s" % _animation_name)
-	lines.append("插值曲线：%s" % _describe_curve())
+	#if root != null:
+	#	lines.append("AnimationPlayer：%s" % String(root.get_path_to(_player)))
+	#else:
+	#	lines.append("AnimationPlayer：%s" % String(_player.name))
+	#lines.append("动画：%s" % _animation_name)
+	#lines.append("插值曲线：%s" % _describe_curve())
 	if _track_index < 0:
-		lines.append("轨道：未选择")
-		_info_label.text = "\n".join(lines)
+		#lines.append("轨道：未选择")
+		#_info_label.text = "\n".join(lines)
 		return
 	var track_type: int = _animation.track_get_type(_track_index)
-	lines.append("轨道 %d：%s" % [_track_index, Core.track_type_label(track_type)])
-	lines.append("路径：%s" % String(_animation.track_get_path(_track_index)))
+	#lines.append("轨道 %d：%s" % [_track_index, Core.track_type_label(track_type)])
+	#lines.append("路径：%s" % String(_animation.track_get_path(_track_index)))
 	var ends: Dictionary = Core.read_track_ends(_animation, _track_index)
 	if bool(ends["ok"]):
-		lines.append("关键帧 %d 个，时间 %.3f ~ %.3f" % [int(ends["count"]), float(ends["time_from"]), float(ends["time_to"])])
-		lines.append("当前首帧：%s" % Core.describe_edit_value(ends["from"]))
-		lines.append("当前尾帧：%s" % Core.describe_edit_value(ends["to"]))
-		lines.append("参与修改的通道：%s" % _describe_active_channels(Core.edit_channel_count(ends["from"])))
-		lines.append("生效范围：%s" % _describe_range())
+		#lines.append("关键帧 %d 个，时间 %.3f ~ %.3f" % [int(ends["count"]), float(ends["time_from"]), float(ends["time_to"])])
+		#lines.append("当前首帧：%s" % Core.describe_edit_value(ends["from"]))
+		#lines.append("当前尾帧：%s" % Core.describe_edit_value(ends["to"]))
+		#lines.append("参与修改的通道：%s" % _describe_active_channels(Core.edit_channel_count(ends["from"])))
+		#lines.append("生效范围：%s" % _describe_range())
 		if Core.is_angle_edit(ends["from"]):
-			lines.append("（旋转轨道按欧拉角(度)编辑；可单独勾选 X/Y/Z 轴修改；全选时按最短路径 slerp 过渡）")
+			lines.append("* 旋转轨道按欧拉角处理；可勾选 X/Y/Z 轴修改；全选时按最短路径 slerp 过渡")
 	else:
 		lines.append("（%s）" % String(ends["error"]))
-	lines.append("动画来源：%s" % _animation_source())
-	_info_label.text = "\n".join(lines)
+	#lines.append("动画来源：%s" % _animation_source())
+	#_info_label.text = "\n".join(lines)
 
 
 func _describe_active_channels(channels: int) -> String:
@@ -596,30 +611,20 @@ func _on_animation_selected(index: int) -> void:
 
 
 func _on_track_selected(index: int) -> void:
-	_select_track(index)
+	if index < 0 or index >= _track_option.item_count:
+		return
+	_select_track(_track_option.get_item_id(index))
 
 
-## 「位置 / 旋转 / 缩放」勾选框变化：刷新下拉项的可用状态；
-## 当前选中的轨道如果被跳过，自动跳到第一个可选轨道。
+## 「位置 / 旋转 / 缩放」勾选框变化：重建下拉（被跳过的类型不再列出）；
+## 当前轨道仍然可选就保持，否则自动跳到第一个可选轨道。
 func _on_track_filter_toggled(_pressed: bool) -> void:
 	if _animation == null:
 		return
-	for i: int in range(_animation.get_track_count()):
-		_track_option.set_item_disabled(i, not _is_track_selectable(i))
-	if _track_index >= 0 and _is_track_selectable(_track_index):
-		_update_info()
-		return
-	var wanted: int = _first_selectable_track()
-	if wanted == -1:
-		_track_index = -1
-		_apply_button.disabled = true
-		_clear_spins()
-		_update_info()
-		_set_status("当前勾选的类型里没有可插值的轨道（需要 ≥2 个关键帧）。", false)
-		return
-	_track_option.select(wanted)
-	_select_track(wanted)
-	_set_status("已跳过未勾选类型的轨道，自动切到轨道 %d。" % wanted, true)
+	var previous: int = _track_index
+	_refresh_tracks(previous)
+	if previous >= 0 and _track_index >= 0 and _track_index != previous:
+		_set_status("轨道 %d 已被跳过，自动切到轨道 %d。" % [previous, _track_index], true)
 
 
 func _on_keep_ends_toggled(_pressed: bool) -> void:

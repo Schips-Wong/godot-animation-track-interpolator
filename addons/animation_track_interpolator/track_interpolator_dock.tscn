@@ -81,6 +81,7 @@ text = "缩放"
 
 [node name="InfoLabel" type="Label" parent="." unique_id=1641103377]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 text = "当前编辑场景里没有 AnimationPlayer。"
 autowrap_mode = 3
