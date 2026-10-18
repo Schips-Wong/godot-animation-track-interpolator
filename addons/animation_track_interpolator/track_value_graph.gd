@@ -11,11 +11,11 @@ extends Control
 
 const Core: GDScript = preload("res://addons/animation_track_interpolator/track_interpolator_core.gd")
 
-## 内边距：左侧留给数值标签，底部留给时间标签。
+## 内边距：左侧留给数值标签，底部留给时间标签（实际底部还会按字体度量补足）。
 const PAD_LEFT: float = 44.0
 const PAD_RIGHT: float = 10.0
 const PAD_TOP: float = 10.0
-const PAD_BOTTOM: float = 20.0
+const PAD_BOTTOM: float = 26.0
 
 const SAMPLES_PER_SEGMENT: int = 24
 const KEY_RADIUS: float = 3.5
@@ -63,12 +63,15 @@ var _view: Rect2 = Rect2(0.0, -1.0, 1.0, 2.0)
 var _user_view: bool = false
 var _panning: bool = false
 var _hover_time: float = NAN
+## 缓存的底部留白（只有字体变化时需要重算）。
+var _bottom_pad_cache: float = PAD_BOTTOM
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	clip_contents = true
 	focus_mode = Control.FOCUS_NONE
+	_update_bottom_pad()
 
 
 func _notification(what: int) -> void:
@@ -78,6 +81,7 @@ func _notification(what: int) -> void:
 				_fit_if_possible()
 			queue_redraw()
 		NOTIFICATION_THEME_CHANGED:
+			_update_bottom_pad()
 			queue_redraw()
 		NOTIFICATION_MOUSE_EXIT:
 			if not is_nan(_hover_time):
@@ -229,8 +233,22 @@ func _unwrap_angles() -> void:
 
 func _plot_rect() -> Rect2:
 	var width: float = maxf(size.x - PAD_LEFT - PAD_RIGHT, 1.0)
-	var height: float = maxf(size.y - PAD_TOP - PAD_BOTTOM, 1.0)
+	var height: float = maxf(size.y - PAD_TOP - _bottom_pad(), 1.0)
 	return Rect2(PAD_LEFT, PAD_TOP, width, height)
+
+
+## 底部留白：至少要放得下时间标签的上沿 + 下沿（不同编辑器字体大小都能完整显示）。
+func _bottom_pad() -> float:
+	return _bottom_pad_cache
+
+
+func _update_bottom_pad() -> void:
+	var font: Font = get_theme_default_font()
+	if font == null:
+		_bottom_pad_cache = PAD_BOTTOM
+		return
+	var font_size: int = maxi(get_theme_default_font_size() - 1, 8)
+	_bottom_pad_cache = maxf(PAD_BOTTOM, font.get_ascent(font_size) + font.get_descent(font_size) + 8.0)
 
 
 func _to_local(point: Vector2) -> Vector2:
@@ -388,6 +406,9 @@ func _draw_grid(plot: Rect2) -> void:
 	var font_size: int = maxi(get_theme_default_font_size() - 1, 8)
 
 	var x_step: float = _nice_step(_view.size.x, maxf(plot.size.x / 74.0, 2.0))
+	# 时间标签以基线定位：基线 = 绘图区底部 + 字体上沿，给下沿（下沉部分）留出空间。
+	var ascent: float = font.get_ascent(font_size) if font != null else 0.0
+	var time_baseline: float = plot.end.y + ascent + 2.0
 	var x: float = ceilf(_view.position.x / x_step) * x_step
 	while x <= _view.end.x + MIN_SPAN:
 		var px: float = _to_local(Vector2(x, 0.0)).x
@@ -398,12 +419,16 @@ func _draw_grid(plot: Rect2) -> void:
 			1.0
 		)
 		if font != null:
+			var text: String = _format_number(x, x_step) + "s"
+			var text_width: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+			# 夹在控件内，避免首尾的时间标签被左右边缘裁掉一半。
+			var label_left: float = clampf(px - text_width * 0.5, 0.0, maxf(size.x - text_width, 0.0))
 			draw_string(
 				font,
-				Vector2(px - 30.0, plot.end.y + float(font_size) + 3.0),
-				_format_number(x, x_step) + "s",
-				HORIZONTAL_ALIGNMENT_CENTER,
-				60.0,
+				Vector2(label_left, time_baseline),
+				text,
+				HORIZONTAL_ALIGNMENT_LEFT,
+				-1,
 				font_size,
 				COLOR_TEXT_DIM
 			)
