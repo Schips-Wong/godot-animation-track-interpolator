@@ -6,9 +6,11 @@ extends Control
 ## 采样出每个通道的曲线，并在曲线上标出关键帧；蓝色底纹表示「生效范围」，
 ## 范围外的关键帧会被画暗（它们不会被插值改写）。
 ##
-## 操作：滚轮缩放；Ctrl+滚轮只缩放时间，Shift+滚轮只缩放数值；
-## 左键 / 中键拖拽平移；双击或「适配视图」按钮复位到全部关键帧。
-## 打开编辑模式后，拖动关键帧点即可修改该点的数值（由面板负责撤销/重做）。
+## 操作（统一的图表操作模式）：
+## - 左键：单击选择关键帧点；按住「已经选中」的点拖动修改数值（左键不平移视图）；双击适配视图；
+## - 右键：无动作；
+## - 中键：单击无动作，按住拖动平移视图；
+## - 滚轮：缩放（Ctrl 只缩放时间，Shift 只缩放数值）。
 
 const Core: GDScript = preload("res://addons/animation_track_interpolator/track_interpolator_core.gd")
 
@@ -77,6 +79,9 @@ var _bottom_pad_cache: float = PAD_BOTTOM
 var _edit_enabled: bool = false
 var _hover_channel: int = -1
 var _hover_index: int = -1
+## 已选中的关键帧点；只有它才能被按住拖动。
+var _selected_channel: int = -1
+var _selected_index: int = -1
 var _dragging_key: bool = false
 var _drag_channel: int = -1
 var _drag_index: int = -1
@@ -107,8 +112,11 @@ func _notification(what: int) -> void:
 			_update_bottom_pad()
 			queue_redraw()
 		NOTIFICATION_MOUSE_EXIT:
-			if not is_nan(_hover_time):
+			if not is_nan(_hover_time) or _hover_index >= 0:
 				_hover_time = NAN
+				_hover_channel = -1
+				_hover_index = -1
+				_update_cursor()
 				queue_redraw()
 
 
@@ -120,6 +128,7 @@ func set_track(animation: Animation, track_index: int) -> void:
 	if not same_source:
 		if _dragging_key:
 			_cancel_key_drag()
+		_clear_selection()
 		_disconnect_source()
 		_animation = animation
 		_track_index = track_index
@@ -163,6 +172,7 @@ func set_edit_enabled(enabled: bool) -> void:
 	_edit_enabled = enabled
 	_hover_channel = -1
 	_hover_index = -1
+	_clear_selection()
 	_update_cursor()
 	queue_redraw()
 
@@ -249,6 +259,14 @@ func _rebuild(refit: bool) -> void:
 			_channel_values[channel] = column
 	if _has_angle:
 		_unwrap_angles()
+	# 选中的点可能因为外部增删关键帧而失效。
+	if _selected_channel < 0 or _selected_channel >= _channel_values.size() \
+			or _selected_index < 0 or _selected_index >= _times.size():
+		_clear_selection()
+	if _hover_channel < 0 or _hover_channel >= _channel_values.size() \
+			or _hover_index < 0 or _hover_index >= _times.size():
+		_hover_channel = -1
+		_hover_index = -1
 	if refit or _view.size.x <= MIN_SPAN or _view.size.y <= MIN_SPAN:
 		_view = _compute_fit_view()
 	queue_redraw()
@@ -541,13 +559,17 @@ func _draw_keys(plot: Rect2) -> void:
 			var color: Color = CHANNEL_COLORS[channel]
 			if not in_range:
 				color.a = 0.3
-			var highlighted: bool = _edit_enabled and (
-				(i == _hover_index and channel == _hover_channel)
-				or (_dragging_key and i == _drag_index and channel == _drag_channel)
-			)
-			draw_circle(point, KEY_RADIUS + (1.5 if highlighted else 0.0), color)
-			if highlighted:
-				draw_arc(point, KEY_RADIUS + 4.0, 0.0, TAU, 24, COLOR_KEY_ACTIVE, 1.5, true)
+			var selected: bool = channel == _selected_channel and i == _selected_index
+			var dragging: bool = _dragging_key and channel == _drag_channel and i == _drag_index
+			var hovered: bool = _edit_enabled and channel == _hover_channel and i == _hover_index
+			if selected or dragging:
+				draw_circle(point, KEY_RADIUS + 1.5, color)
+				draw_arc(point, KEY_RADIUS + 4.0, 0.0, TAU, 24, COLOR_KEY_ACTIVE, 2.0, true)
+			elif hovered:
+				draw_circle(point, KEY_RADIUS + 1.0, color)
+				draw_arc(point, KEY_RADIUS + 3.0, 0.0, TAU, 20, Color(1.0, 1.0, 1.0, 0.55), 1.0, true)
+			else:
+				draw_circle(point, KEY_RADIUS, color)
 
 
 ## 拖动关键帧时画一条水平参考线，方便对齐数值。
@@ -598,14 +620,14 @@ func _draw_hover(plot: Rect2) -> void:
 	var font: Font = get_theme_default_font()
 	var font_size: int = maxi(get_theme_default_font_size() - 2, 8)
 	var lines: PackedStringArray = PackedStringArray()
-	lines.append("t = %s s" % String.num(_hover_time, 3))
+	lines.append("t = %s s" % _format_number(_hover_time, 0.001))
 	for channel: int in range(_channel_values.size()):
 		var value: float = _sample_channel(channel, _hover_time)
 		var y: float = _to_local(Vector2(_hover_time, value)).y
 		if y >= plot.position.y and y <= plot.end.y:
 			draw_circle(Vector2(x, y), 3.0, CHANNEL_COLORS[channel])
 		var suffix: String = "°" if _has_angle else ""
-		lines.append("%s  %s%s" % [_channel_names[channel], String.num(value, 4), suffix])
+		lines.append("%s  %s%s" % [_channel_names[channel], _format_number(value, 0.0001), suffix])
 	if font == null:
 		return
 	var width: float = 0.0
@@ -665,7 +687,8 @@ static func _format_number(value: float, step: float) -> String:
 	if step < 1.0 and step > 0.0:
 		digits = clampi(int(ceil(-log(step) / log(10.0))), 0, 4)
 	var text: String = String.num(value, digits)
-	if text.begins_with("-0") and not text.contains("."):
+	# 把 "-0" / "-0.0" 统一成 "0"。
+	if text.begins_with("-") and is_zero_approx(text.to_float()):
 		text = text.substr(1)
 	return text
 
@@ -703,23 +726,35 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 				zoom_value = true
 			_zoom_at(event.position, factor, zoom_time, zoom_value)
 			accept_event()
-		MOUSE_BUTTON_LEFT, MOUSE_BUTTON_MIDDLE:
+		MOUSE_BUTTON_LEFT:
+			# 左键：单击选择；按住已选中的点才拖动（左键永远不平移视图）；双击适配视图。
 			if event.pressed:
-				if event.button_index == MOUSE_BUTTON_LEFT and event.double_click:
-					_panning = false
+				if _panning:
+					return
+				if event.double_click:
 					fit_view()
-				elif event.button_index == MOUSE_BUTTON_LEFT and _edit_enabled:
+				elif _edit_enabled and plot.has_point(event.position):
 					var pick: Dictionary = _pick_key(event.position)
-					if not pick.is_empty():
-						_begin_key_drag(int(pick["channel"]), int(pick["index"]), event.position)
-					elif plot.has_point(event.position):
-						_panning = true
-				elif plot.has_point(event.position):
+					if pick.is_empty():
+						_clear_selection()
+					else:
+						var channel: int = int(pick["channel"])
+						var index: int = int(pick["index"])
+						if channel == _selected_channel and index == _selected_index:
+							_begin_key_drag(channel, index, event.position)
+						else:
+							_select_key(channel, index)
+			elif _dragging_key:
+				_finish_key_drag()
+			accept_event()
+		MOUSE_BUTTON_MIDDLE:
+			# 中键：按住拖拽平移视图，单击无动作。
+			if event.pressed:
+				if not _dragging_key and plot.has_point(event.position):
 					_panning = true
 			else:
-				if _dragging_key:
-					_finish_key_drag()
 				_panning = false
+			_update_cursor()
 			accept_event()
 
 
@@ -768,12 +803,29 @@ func _pick_key(local: Vector2) -> Dictionary:
 
 
 func _update_cursor() -> void:
-	if _dragging_key:
+	if _dragging_key or _panning:
 		mouse_default_cursor_shape = Control.CURSOR_DRAG
 	elif _edit_enabled and _hover_index >= 0:
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	else:
 		mouse_default_cursor_shape = Control.CURSOR_ARROW
+
+
+## 单击选择一个关键帧点；只有选中的点才允许按住拖动。
+func _select_key(channel: int, index: int) -> void:
+	_selected_channel = channel
+	_selected_index = index
+	_hover_channel = channel
+	_hover_index = index
+	queue_redraw()
+
+
+func _clear_selection() -> void:
+	if _selected_channel == -1 and _selected_index == -1:
+		return
+	_selected_channel = -1
+	_selected_index = -1
+	queue_redraw()
 
 
 # ---------------------------------------------------------------- 关键帧拖动

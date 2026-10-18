@@ -100,7 +100,7 @@ text = "适配视图"
 [node name="ValueGraphEditCheck" type="CheckBox" parent="ValueGraphHeader" unique_id=1210550934]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "勾选后可以直接拖动图表里的关键帧点修改数值（竖直拖动，时间不变）；拖动空白处仍然是平移视图。修改可用 Ctrl+Z 撤销。"
+tooltip_text = "勾选后：左键单击关键帧点选择，再按住选中的点上下拖动修改数值（时间不变）；左键不拖拽视图，中键拖拽平移。修改可用 Ctrl+Z 撤销。"
 text = "编辑"
 
 [node name="ValueCanvas" type="Control" parent="." unique_id=1885603154]
@@ -108,7 +108,7 @@ unique_name_in_owner = true
 clip_contents = true
 custom_minimum_size = Vector2(0, 150)
 layout_mode = 2
-tooltip_text = "当前选中轨道的数值曲线。滚轮缩放（Ctrl 只缩放时间 / Shift 只缩放数值），左键或中键拖拽平移，双击适配视图；勾选「编辑」后可直接拖动关键帧点修改数值。"
+tooltip_text = "当前选中轨道的数值曲线。左键：单击选择关键帧点，按住已选中的点拖动改值（不拖拽视图），双击适配视图；右键：无动作；中键：按住拖拽平移；滚轮：缩放（Ctrl 只缩放时间 / Shift 只缩放数值）。"
 script = ExtResource("3_value")
 
 [node name="InfoLabel" type="Label" parent="." unique_id=1641103377]
