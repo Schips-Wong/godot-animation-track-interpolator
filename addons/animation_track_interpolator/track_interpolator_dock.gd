@@ -47,6 +47,7 @@ var _last_preset: int = Core.CURVE_LINEAR
 @onready var _value_canvas: ValueGraph = %ValueCanvas
 @onready var _value_fit_button: Button = %ValueGraphFitButton
 @onready var _value_edit_check: CheckBox = %ValueGraphEditCheck
+@onready var _value_expand_check: CheckBox = %ValueGraphExpandCheck
 @onready var _mode_points_button: Button = %ModePointsButton
 @onready var _mode_bezier_button: Button = %ModeBezierButton
 @onready var _mode_elastic_button: Button = %ModeElasticButton
@@ -121,6 +122,7 @@ func _ready() -> void:
 	_curve_canvas.set_preset_points(Core.preset_points(Core.CURVE_LINEAR))
 	_value_fit_button.pressed.connect(_on_value_graph_fit_pressed)
 	_value_edit_check.toggled.connect(_on_value_graph_edit_toggled)
+	_value_expand_check.toggled.connect(_on_value_graph_expand_toggled)
 	_value_canvas.keys_edited.connect(_on_value_graph_keys_edited)
 
 	_refresh_button.pressed.connect(_on_refresh_pressed)
@@ -871,6 +873,14 @@ func _on_value_graph_edit_toggled(pressed: bool) -> void:
 		_set_status("数值图表：左键单击选中关键帧点，再按住选中的点拖动即可修改数值。", true)
 	else:
 		_set_status("数值图表：已退出编辑模式，只能查看曲线。", true)
+
+
+func _on_value_graph_expand_toggled(pressed: bool) -> void:
+	_value_canvas.set_expanded(pressed)
+	if pressed:
+		_set_status("数值图表已放大，取消勾选可恢复原高度。", true)
+	else:
+		_set_status("数值图表已恢复原高度。", true)
 
 
 ## 图表里拖完一个关键帧点：走统一的撤销记录，整条轨道重建。

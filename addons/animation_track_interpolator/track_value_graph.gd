@@ -23,6 +23,10 @@ const PAD_RIGHT: float = 10.0
 const PAD_TOP: float = 10.0
 const PAD_BOTTOM: float = 26.0
 
+## 图表高度：普通 / 放大（由面板上的「放大」选框切换）。
+const HEIGHT_COMPACT: float = 150.0
+const HEIGHT_EXPANDED: float = 360.0
+
 const SAMPLES_PER_SEGMENT: int = 24
 const KEY_RADIUS: float = 3.5
 ## 编辑模式下拾取关键帧点的半径（像素）。
@@ -156,6 +160,15 @@ func clear_active_range() -> void:
 func fit_view() -> void:
 	_user_view = false
 	_fit_if_possible()
+	queue_redraw()
+
+
+## 放大图表：只改最小高度，数据范围（视图）保持不变。
+func set_expanded(expanded: bool) -> void:
+	var target: float = HEIGHT_EXPANDED if expanded else HEIGHT_COMPACT
+	if is_equal_approx(custom_minimum_size.y, target):
+		return
+	custom_minimum_size = Vector2(custom_minimum_size.x, target)
 	queue_redraw()
 
 
