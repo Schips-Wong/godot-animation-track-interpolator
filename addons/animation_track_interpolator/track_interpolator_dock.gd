@@ -866,6 +866,7 @@ func _on_value_graph_fit_pressed() -> void:
 
 func _on_value_graph_edit_toggled(pressed: bool) -> void:
 	_value_canvas.set_edit_enabled(pressed)
+	_value_canvas.tooltip_text = ""
 	if pressed:
 		_set_status("数值图表：左键单击选中关键帧点，再按住选中的点拖动即可修改数值。", true)
 	else:
