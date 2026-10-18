@@ -79,6 +79,29 @@ button_pressed = true
 tooltip_text = "取消勾选后，「轨道」下拉里的「缩放 3D」轨道会置灰并跳过。"
 text = "缩放"
 
+[node name="ValueGraphHeader" type="HBoxContainer" parent="." unique_id=1384620107]
+layout_mode = 2
+
+[node name="ValueGraphTitle" type="Label" parent="ValueGraphHeader" unique_id=1529274601]
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "当前选中轨道的数值曲线：横轴=时间（秒），纵轴=通道值。蓝色底纹是生效范围，范围外的关键帧会画暗。"
+text = "数值图表"
+
+[node name="ValueGraphFitButton" type="Button" parent="ValueGraphHeader" unique_id=1738350942]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "把图表视图适配到该轨道的全部关键帧（也可以双击图表）。"
+text = "适配视图"
+clip_text = true
+
+[node name="ValueCanvas" type="Control" parent="." unique_id=1885603154]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 150)
+layout_mode = 2
+tooltip_text = "当前选中轨道的数值曲线。滚轮缩放（Ctrl 只缩放时间 / Shift 只缩放数值），左键或中键拖拽平移，双击适配视图。"
+script = ExtResource("3_value")
+
 [node name="InfoLabel" type="Label" parent="." unique_id=1641103377]
 unique_name_in_owner = true
 visible = false

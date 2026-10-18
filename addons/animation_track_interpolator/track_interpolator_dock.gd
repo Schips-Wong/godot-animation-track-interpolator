@@ -7,6 +7,7 @@ extends VBoxContainer
 
 const Core: GDScript = preload("res://addons/animation_track_interpolator/track_interpolator_core.gd")
 const CurveCanvas: GDScript = preload("res://addons/animation_track_interpolator/curve_editor.gd")
+const ValueGraph: GDScript = preload("res://addons/animation_track_interpolator/track_value_graph.gd")
 
 const COLOR_OK: Color = Color(0.62, 0.87, 0.62)
 const COLOR_ERROR: Color = Color(1.0, 0.55, 0.45)
@@ -43,6 +44,8 @@ var _last_preset: int = Core.CURVE_LINEAR
 @onready var _info_label: Label = %InfoLabel
 @onready var _curve_option: OptionButton = %CurveOption
 @onready var _curve_canvas: CurveCanvas = %CurveCanvas
+@onready var _value_canvas: ValueGraph = %ValueCanvas
+@onready var _value_fit_button: Button = %ValueGraphFitButton
 @onready var _mode_points_button: Button = %ModePointsButton
 @onready var _mode_bezier_button: Button = %ModeBezierButton
 @onready var _mode_elastic_button: Button = %ModeElasticButton
@@ -115,6 +118,7 @@ func _ready() -> void:
 	_curve_canvas.edit_started.connect(_on_curve_edit_started)
 	_curve_canvas.shape_changed.connect(_on_curve_shape_changed)
 	_curve_canvas.set_preset_points(Core.preset_points(Core.CURVE_LINEAR))
+	_value_fit_button.pressed.connect(_on_value_graph_fit_pressed)
 
 	_refresh_button.pressed.connect(_on_refresh_pressed)
 	_player_option.item_selected.connect(_on_player_selected)
@@ -438,6 +442,19 @@ func _sync_range() -> void:
 func _set_range(span: Vector2) -> void:
 	_range_from_spin.set_value_no_signal(span.x)
 	_range_to_spin.set_value_no_signal(span.y)
+	_sync_value_graph()
+
+
+## 把「当前动画 + 轨道 + 生效范围」同步到数值图表。
+func _sync_value_graph() -> void:
+	if _animation == null or _track_index < 0:
+		_value_canvas.set_track(null, -1)
+		return
+	_value_canvas.set_track(_animation, _track_index)
+	if _range_to_spin.value > _range_from_spin.value:
+		_value_canvas.set_active_range(_range_from_spin.value, _range_to_spin.value)
+	else:
+		_value_canvas.clear_active_range()
 
 
 func _select_animation(index: int) -> void:
@@ -632,6 +649,7 @@ func _on_keep_ends_toggled(_pressed: bool) -> void:
 
 
 func _on_range_changed(_value: float) -> void:
+	_sync_value_graph()
 	_update_info()
 
 
@@ -838,6 +856,11 @@ func _on_curve_reset_view() -> void:
 	_set_status("曲线视图已复位。", true)
 
 
+func _on_value_graph_fit_pressed() -> void:
+	_value_canvas.fit_view()
+	_set_status("数值图表已适配到该轨道的全部关键帧。", true)
+
+
 ## 「重置图表」：把「当前」图形模型自己恢复成初始形状，模型本身不变，
 ## 也不会动其他模型调好的参数。
 ## - 多控制点 → 重置为「插值方式」当前选中的预设
@@ -1031,6 +1054,7 @@ func _apply_tracks(track_indices: PackedInt32Array, use_spin_values: bool) -> vo
 
 	_refresh_player_cache()
 	_reload_values_from_keys()
+	_sync_value_graph()
 	_update_info()
 	var applied: int = plans.size()
 	if skipped > 0:
